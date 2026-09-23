@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block title %}Piece-Rate Statement - {{ worker.name }} ({{ worker.worker_code }}) | Vasantham Printers{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- TOP NAVIGATION & ACTION CONTROLS (HIDDEN ON PRINT) -->
+    <div class="print:hidden flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center space-x-3.5">
+            <a href="{{ url_for('piece_rate.list_workers') }}" class="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h1 class="text-xl font-bold text-slate-900">{{ worker.name }}</h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        {{ worker.worker_code }}
+                    </span>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                        {{ worker.department_category }}
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Contract Piece-Rate Item-Wise Production Statement & Payment Slip
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- PRINT BUTTON -->
+            <button type="button" 
+                    onclick="window.print()" 
+                    class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-print mr-1.5"></i> Print Wage Slip
+            </button>
+
+            <!-- SETTLE UNPAID WAGES BUTTON -->
+            {% if unpaid_amount > 0 %}
+            <button type="button" 
+                    onclick="openSettleModal()" 
+                    class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-hand-holding-dollar mr-1.5"></i> Settle ₹{{ "{:,.2f}".format(unpaid_amount) }}
+            </button>
+            {% else %}
+            <span class="inline-flex items-center px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <i class="fas fa-check-circle mr-1.5"></i> All Settled
+            </span>
+            {% endif %}
+
+            <a href="{{ url_for('piece_rate.index', worker_id=worker.id) }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-plus mr-1.5 text-slate-500"></i> Log Qty
+            </a>
+        </div>
+    </div>
+
+    <!-- DATE RANGE FILTER BAR (HIDDEN ON PRINT) -->
+    <div class="print:hidden bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <form method="GET" action="{{ url_for('piece_rate.worker_statement', worker_id=worker.id) }}" class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600">From:</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600">To:</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600">Payment Status:</label>
+                <select name="status" class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg">
+                    <option value="ALL" {% if status == 'ALL' %}selected{% endif %}>All Records</option>
+                    <option value="UNPAID" {% if status == 'UNPAID' %}selected{% endif %}>Unpaid Only</option>
+                    <option value="PAID" {% if status == 'PAID' %}selected{% endif %}>Paid Only</option>
+                </select>
+            </div>
+
+            <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs">
+                Filter Period
+            </button>
+        </form>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- PRINTABLE VOUCHER / WAGE SLIP CONTAINER -->
+    <!-- ===================================================================== -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 md:p-8 space-y-6 print:border-none print:shadow-none print:p-0">
+        
+        <!-- COMPANY & SLIP HEADER -->
+        <div class="border-b-2 border-slate-900 pb-5 flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div>
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+                        VP
+                    </div>
+                    <h2 class="text-2xl font-black text-slate-900 tracking-tight">{{ company_info.company_name }}</h2>
+                </div>
+                {% if company_info.address %}
+                <p class="text-xs text-slate-600 font-medium mt-1">{{ company_info.address }}</p>
+                {% endif %}
+                <div class="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500 font-mono mt-0.5">
+                    {% if company_info.phone %}<span>Tel: {{ company_info.phone }}</span>{% endif %}
+                    {% if company_info.email %}<span>• {{ company_info.email }}</span>{% endif %}
+                    {% if company_info.gstin %}<span>• GSTIN: {{ company_info.gstin }}</span>{% endif %}
+                    {% if company_info.factory_license_no %}<span>• Lic: {{ company_info.factory_license_no }}</span>{% endif %}
+                </div>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-blue-700 mt-1">
+                    CONTRACT PIECE-RATE PRODUCTION STATEMENT & WAGE SLIP
+                </p>
+            </div>
+            <div class="text-left md:text-right space-y-1">
+                <div class="inline-block px-3 py-1 rounded bg-slate-100 font-mono text-xs font-bold text-slate-800">
+                    PERIOD: {{ start_date }} to {{ end_date }}
+                </div>
+                <p class="text-[11px] text-slate-400 font-mono">Statement Date: {{ date.today() if date else '' }}</p>
+            </div>
+        </div>
+
+        <!-- WORKER PROFILE DETAILS CARD -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Worker Code</span>
+                <span class="font-mono font-bold text-slate-900 text-sm">{{ worker.worker_code }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Contractor Name</span>
+                <span class="font-bold text-slate-900 text-sm">{{ worker.name }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Trade Category</span>
+                <span class="font-semibold text-slate-800">{{ worker.department_category }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Mobile & ID</span>
+                <span class="font-mono text-slate-700">{{ worker.phone or 'N/A' }}{% if worker.id_proof_number %} • {{ worker.id_proof_number }}{% endif %}</span>
+            </div>
+        </div>
+
+        <!-- 1. ITEM-WISE PRODUCTION SUMMARY (GROUPED BY ITEM WISE) -->
+        <div class="space-y-2.5">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-list-check text-blue-600 text-sm"></i>
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Item-Wise Production & Earnings Summary</h3>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-200 rounded-xl overflow-hidden">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 text-[11px] font-bold uppercase tracking-wider">
+                            <th class="py-2.5 px-4 w-12 text-center">#</th>
+                            <th class="py-2.5 px-4">Item / Work Process</th>
+                            <th class="py-2.5 px-4 text-center">Unit</th>
+                            <th class="py-2.5 px-4 text-right">Applied Rate</th>
+                            <th class="py-2.5 px-4 text-center">Gross Output</th>
+                            <th class="py-2.5 px-4 text-center">Spoilage / Rej</th>
+                            <th class="py-2.5 px-4 text-center bg-blue-50/70 font-bold text-blue-900">Payable Output</th>
+                            <th class="py-2.5 px-4 text-right bg-emerald-50/70 font-bold text-emerald-900">Total Wages (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200">
+                        {% for item in item_summary %}
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="py-2 px-4 text-center font-mono text-slate-400">{{ loop.index }}</td>
+                            <td class="py-2 px-4 font-bold text-slate-900">
+                                {{ item.item_name }}
+                                <span class="text-[10px] text-slate-400 block font-normal">Across {{ item.jobs_count }} production batches</span>
+                            </td>
+                            <td class="py-2 px-4 text-center font-mono text-slate-600">{{ item.unit_measure }}</td>
+                            <td class="py-2 px-4 text-right font-mono font-bold text-slate-700">{{ item.rates_display }}</td>
+                            <td class="py-2 px-4 text-center font-mono text-slate-600">{{ "{:,}".format(item.gross_qty) }}</td>
+                            <td class="py-2 px-4 text-center font-mono text-rose-600">
+                                {{ "-{:,}".format(item.rejected_qty) if item.rejected_qty > 0 else "0" }}
+                            </td>
+                            <td class="py-2 px-4 text-center bg-blue-50/30 font-mono font-bold text-blue-900">
+                                {{ "{:,}".format(item.payable_qty) }}
+                            </td>
+                            <td class="py-2 px-4 text-right bg-emerald-50/30 font-mono font-bold text-emerald-800">
+                                ₹{{ "{:,.2f}".format(item.total_amount) }}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="py-6 text-center text-slate-400 italic">No production logs recorded for this period.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900">
+                            <td colspan="4" class="py-2.5 px-4 uppercase text-[11px] tracking-wider text-right">Grand Totals:</td>
+                            <td class="py-2.5 px-4 text-center font-mono">{{ "{:,}".format(total_gross_qty) }}</td>
+                            <td class="py-2.5 px-4 text-center font-mono text-rose-600">{{ "-{:,}".format(total_rejected_qty) if total_rejected_qty > 0 else "0" }}</td>
+                            <td class="py-2.5 px-4 text-center font-mono bg-blue-100/60 text-blue-950 font-black text-sm">{{ "{:,}".format(total_payable_qty) }}</td>
+                            <td class="py-2.5 px-4 text-right font-mono bg-emerald-100/60 text-emerald-950 font-black text-sm">₹{{ "{:,.2f}".format(total_amount) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- 2. DETAILED CHRONOLOGICAL PRODUCTION REGISTER -->
+        <div class="space-y-2.5 pt-2">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-clock-rotate-left text-slate-600 text-sm"></i>
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Detailed Daily Production Log</h3>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-200 rounded-xl overflow-hidden">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-wider">
+                            <th class="py-2 px-3 text-center">Date</th>
+                            <th class="py-2 px-3">Job Card #</th>
+                            <th class="py-2 px-3">Item Description</th>
+                            <th class="py-2 px-3 text-right">Rate</th>
+                            <th class="py-2 px-3 text-center">Completed</th>
+                            <th class="py-2 px-3 text-center">Payable</th>
+                            <th class="py-2 px-3 text-right font-bold text-emerald-900">Amount (₹)</th>
+                            <th class="py-2 px-3 text-center">Status</th>
+                            <th class="py-2 px-3">Payout Reference</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 font-mono text-[11px]">
+                        {% for e in entries %}
+                        <tr class="hover:bg-slate-50/40">
+                            <td class="py-1.5 px-3 text-center text-slate-700 font-bold whitespace-nowrap">{{ e.work_date }}</td>
+                            <td class="py-1.5 px-3 text-slate-600">{{ e.job_card_no or '-' }}</td>
+                            <td class="py-1.5 px-3 font-sans font-medium text-slate-800">{{ e.item_name }}</td>
+                            <td class="py-1.5 px-3 text-right text-slate-600">₹{{ "{:,.2f}".format(e.rate_per_unit) }}</td>
+                            <td class="py-1.5 px-3 text-center text-slate-600">{{ "{:,}".format(e.quantity_completed) }}</td>
+                            <td class="py-1.5 px-3 text-center font-bold text-blue-900">{{ "{:,}".format(e.payable_quantity) }}</td>
+                            <td class="py-1.5 px-3 text-right font-bold text-emerald-800">₹{{ "{:,.2f}".format(e.total_amount) }}</td>
+                            <td class="py-1.5 px-3 text-center">
+                                {% if e.payment_status == 'PAID' %}
+                                <span class="text-emerald-700 font-bold">PAID</span>
+                                {% else %}
+                                <span class="text-amber-700 font-bold">UNPAID</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-1.5 px-3 text-slate-500 font-sans text-[10px]">{{ e.payout_reference or '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 3. FINANCIAL SETTLEMENT SUMMARY BOX -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t-2 border-slate-900 pt-4">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Gross Production Earnings</span>
+                <span class="font-mono font-bold text-slate-900 text-lg">₹{{ "{:,.2f}".format(total_amount) }}</span>
+            </div>
+            <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200">
+                <span class="text-emerald-700 block text-[10px] uppercase font-bold tracking-wider">Already Paid / Settled</span>
+                <span class="font-mono font-bold text-emerald-800 text-lg">₹{{ "{:,.2f}".format(total_amount - unpaid_amount) }}</span>
+            </div>
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <span class="text-amber-700 block text-[10px] uppercase font-bold tracking-wider">Net Payable Outstanding</span>
+                <span class="font-mono font-black text-amber-900 text-xl">₹{{ "{:,.2f}".format(unpaid_amount) }}</span>
+            </div>
+        </div>
+
+        <!-- 4. SIGNATURE BLOCKS FOR PRINTED VOUCHER -->
+        <div class="pt-12 grid grid-cols-2 gap-8 text-center text-xs font-semibold text-slate-700">
+            <div class="space-y-12">
+                <div class="border-t border-slate-400 pt-2 w-3/4 mx-auto">
+                    {{ company_info.supervisor_name or 'Authorized Supervisor' }}
+                    <p class="text-[10px] text-slate-400 font-normal">Authorized Signatory • {{ company_info.company_name }}</p>
+                </div>
+            </div>
+            <div class="space-y-12">
+                <div class="border-t border-slate-400 pt-2 w-3/4 mx-auto">
+                    Contractor Worker Signature
+                    <p class="text-[10px] text-slate-400 font-normal">{{ worker.name }} ({{ worker.worker_code }})</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: SETTLE UNPAID WAGES -->
+<!-- ========================================================================= -->
+<div id="settleModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-hand-holding-dollar"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Settle Piece-Rate Wages</h3>
+                    <p class="text-[11px] text-slate-400">{{ worker.name }} ({{ worker.worker_code }})</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('settleModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('piece_rate.settle_payment', worker_id=worker.id) }}" method="POST" class="p-5 space-y-4">
+            <input type="hidden" name="start_date" value="{{ start_date }}">
+            <input type="hidden" name="end_date" value="{{ end_date }}">
+
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                <span class="text-xs text-amber-800 block">Total Unpaid Balance for Period</span>
+                <span class="text-2xl font-black font-mono text-amber-900">₹{{ "{:,.2f}".format(unpaid_amount) }}</span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                <select name="payment_mode" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                    <option value="CASH" {% if worker.payment_mode == 'CASH' %}selected{% endif %}>CASH Voucher</option>
+                    <option value="UPI" {% if worker.payment_mode == 'UPI' %}selected{% endif %}>UPI Transfer (GPay / PhonePe)</option>
+                    <option value="BANK_TRANSFER" {% if worker.payment_mode == 'BANK_TRANSFER' %}selected{% endif %}>Bank Transfer</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Voucher / Transaction Reference</label>
+                <input type="text" name="payout_reference" placeholder="e.g. VOUCHER-{{ worker.worker_code }}-{{ date.today().strftime('%Y%m%d') if date else '' }}"
+                       class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('settleModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+                    <i class="fas fa-check mr-1.5"></i> Mark Paid & Settle
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+}
+
+function openSettleModal() {
+    openModal('settleModal');
+}
+</script>
+{% endblock %}

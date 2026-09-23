@@ -1,0 +1,654 @@
+{% extends "base.html" %}
+
+{% block title %}Contract Piece-Rate Quantity Tracker | Vasantham Printers{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- PAGE HEADER -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-amber-500/20">
+                <i class="fas fa-cubes-stacked text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2.5">
+                    <h1 class="text-xl font-bold text-slate-900">Contract Piece-Rate Quantity Tracker</h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        <i class="fas fa-tag mr-1 text-[10px]"></i>Pcs Rate Engine
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Item-wise production logging, automatic payable calculation, and worker wage ledger for Vasantham Printers.
+                </p>
+            </div>
+        </div>
+
+        <!-- QUICK ACTION CONTROLS -->
+        <div class="flex flex-wrap items-center gap-2">
+            <button type="button" 
+                    onclick="openLogQtyModal()"
+                    class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-plus mr-1.5"></i> Log Work Qty
+            </button>
+            <a href="{{ url_for('piece_rate.list_workers') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-id-card-clip mr-1.5 text-slate-500"></i> Contract Workers
+            </a>
+            <a href="{{ url_for('piece_rate.list_items') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-tags mr-1.5 text-slate-500"></i> Item Rate Master
+            </a>
+            <a href="{{ url_for('piece_rate.export_csv') }}" 
+               class="inline-flex items-center px-3 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+               title="Download CSV report">
+                <i class="fas fa-download mr-1.5 text-slate-400"></i> CSV
+            </a>
+        </div>
+    </div>
+
+    <!-- DAILY KPI STATS STRIP -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- 1. Total Pieces Produced -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Payable Pieces</span>
+                <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-box-open"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-slate-900 mt-2 font-mono">
+                {{ "{:,}".format(kpis.total_payable_pcs) }}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1 flex items-center gap-1.5">
+                <span>Gross: {{ "{:,}".format(kpis.total_gross_pcs) }}</span>
+                {% if kpis.total_rejected_pcs > 0 %}
+                <span class="text-rose-500 font-bold">• Rej: -{{ "{:,}".format(kpis.total_rejected_pcs) }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 2. Total Earned / Payable Today -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Total Wages (Selected Date)</span>
+                <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-indian-rupee-sign"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+                ₹{{ "{:,.2f}".format(kpis.total_earned_amt) }}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">
+                Across {{ kpis.total_entries_count }} production batches
+            </div>
+        </div>
+
+        <!-- 3. Active Contract Workers -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Active Workers (Day)</span>
+                <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-users"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-indigo-900 mt-2 font-mono">
+                {{ kpis.active_workers_count }}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">
+                Workers logged output today
+            </div>
+        </div>
+
+        <!-- 4. Unpaid Wages Balance -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Pending Payout Balance</span>
+                <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-wallet"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-amber-700 mt-2 font-mono">
+                ₹{{ "{:,.2f}".format(pending_info.pending_amt) }}
+            </div>
+            <div class="text-[11px] text-amber-600 font-medium mt-1">
+                {{ pending_info.pending_cnt }} unpaid jobs awaiting settlement
+            </div>
+        </div>
+    </div>
+
+    <!-- ITEM-WISE PRODUCTION SUMMARY FOR SELECTED DATE -->
+    {% if item_summary %}
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-chart-pie text-blue-600 text-sm"></i>
+                <h2 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Item-Wise Production Breakdown ({{ selected_date }})</h2>
+            </div>
+            <span class="text-xs text-slate-500 font-medium">{{ item_summary|length }} Distinct Items Produced</span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for itm in item_summary %}
+            <div class="p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 transition flex items-center justify-between">
+                <div class="space-y-0.5 overflow-hidden pr-2">
+                    <h3 class="font-bold text-xs text-slate-800 truncate" title="{{ itm.item_name }}">{{ itm.item_name }}</h3>
+                    <p class="text-[11px] text-slate-500 font-mono">
+                        {{ itm.workers_count }} Worker(s) • {{ itm.job_count }} Job(s)
+                    </p>
+                </div>
+                <div class="text-right whitespace-nowrap">
+                    <div class="font-bold text-xs text-blue-700 font-mono">
+                        {{ "{:,}".format(itm.payable_qty) }} <span class="text-[10px] font-normal text-slate-500">{{ itm.unit_measure }}</span>
+                    </div>
+                    <div class="text-[11px] font-bold text-emerald-700 font-mono">
+                        ₹{{ "{:,.2f}".format(itm.total_amt) }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- FILTER BAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <form method="GET" action="{{ url_for('piece_rate.index') }}" class="flex flex-wrap items-center gap-3">
+            
+            <!-- Date Filter -->
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600 whitespace-nowrap">Date:</label>
+                <input type="date" 
+                       name="date" 
+                       value="{{ selected_date if selected_date != 'ALL' else '' }}"
+                       class="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <!-- Worker Filter -->
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600 whitespace-nowrap">Worker:</label>
+                <select name="worker_id" class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="">All Workers</option>
+                    {% for w in active_workers %}
+                    <option value="{{ w.id }}" {% if selected_worker_id == w.id|string %}selected{% endif %}>
+                        {{ w.worker_code }} - {{ w.name }} ({{ w.department_category }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Item Filter -->
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600 whitespace-nowrap">Item:</label>
+                <select name="item_id" class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="">All Items</option>
+                    {% for i in active_items %}
+                    <option value="{{ i.id }}" {% if selected_item_id == i.id|string %}selected{% endif %}>
+                        {{ i.item_name }} ({{ i.unit_measure }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Status Filter -->
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600 whitespace-nowrap">Status:</label>
+                <select name="status" class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="ALL" {% if selected_status == 'ALL' %}selected{% endif %}>All Payments</option>
+                    <option value="UNPAID" {% if selected_status == 'UNPAID' %}selected{% endif %}>Unpaid Only</option>
+                    <option value="PAID" {% if selected_status == 'PAID' %}selected{% endif %}>Settled / Paid</option>
+                </select>
+            </div>
+
+            <!-- Submit Buttons -->
+            <div class="flex items-center space-x-2 ml-auto">
+                <button type="submit" class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs">
+                    <i class="fas fa-filter mr-1"></i> Apply Filters
+                </button>
+                <a href="{{ url_for('piece_rate.index', date='ALL') }}" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold transition" title="Show all entries across dates">
+                    View All Dates
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- MAIN QUANTITY TRACKER LOG TABLE -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-sm text-slate-900">Work Logs & Item Quantity Register</h3>
+                <p class="text-xs text-slate-500">Showing {{ entries|length }} work entries for selected criteria</p>
+            </div>
+            <button type="button" 
+                    onclick="openLogQtyModal()" 
+                    class="text-xs font-bold text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-3 py-1.5 rounded-lg transition">
+                <i class="fas fa-plus mr-1"></i> Add Entry
+            </button>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50/80 border-b border-slate-100 text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4 w-12 text-center">#</th>
+                        <th class="py-3 px-4">Worker Profile</th>
+                        <th class="py-3 px-4">Date & Job No</th>
+                        <th class="py-3 px-4">Item / Work Description</th>
+                        <th class="py-3 px-4 text-right">Rate / Unit</th>
+                        <th class="py-3 px-4 text-center">Gross Qty</th>
+                        <th class="py-3 px-4 text-center">Rej</th>
+                        <th class="py-3 px-4 text-center bg-blue-50/50 font-bold text-blue-900">Payable Qty</th>
+                        <th class="py-3 px-4 text-right bg-emerald-50/50 font-bold text-emerald-900">Total Wages</th>
+                        <th class="py-3 px-4 text-center">Status</th>
+                        <th class="py-3 px-4 text-center w-28">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for e in entries %}
+                    <tr class="hover:bg-slate-50/60 transition">
+                        <td class="py-3 px-4 text-center font-mono text-slate-400 text-[11px]">
+                            {{ loop.index }}
+                        </td>
+
+                        <!-- Worker Profile -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-orange-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                                    {{ e.worker_name[:1] }}
+                                </div>
+                                <div>
+                                    <span class="font-bold text-slate-900 block">{{ e.worker_name }}</span>
+                                    <span class="text-[10px] font-mono text-slate-500">
+                                        <span class="font-bold text-amber-700 bg-amber-50 px-1 rounded">{{ e.worker_code }}</span> • {{ e.department_category }}
+                                    </span>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Date & Job Card -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <div class="font-mono font-bold text-slate-800">{{ e.work_date }}</div>
+                            {% if e.job_card_no %}
+                            <span class="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">
+                                <i class="fas fa-clipboard-list text-slate-400 mr-0.5"></i>{{ e.job_card_no }}
+                            </span>
+                            {% else %}
+                            <span class="text-[10px] text-slate-400 italic">No Job #</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Item Name -->
+                        <td class="py-3 px-4">
+                            <div class="font-bold text-slate-900">{{ e.item_name }}</div>
+                            {% if e.remarks %}
+                            <div class="text-[11px] text-slate-500 italic mt-0.5">{{ e.remarks }}</div>
+                            {% endif %}
+                        </td>
+
+                        <!-- Rate -->
+                        <td class="py-3 px-4 text-right font-mono font-bold text-slate-700 whitespace-nowrap">
+                            ₹{{ "{:,.2f}".format(e.rate_per_unit) }} <span class="text-[10px] text-slate-400 font-normal">/ {{ e.unit_measure }}</span>
+                        </td>
+
+                        <!-- Gross Qty -->
+                        <td class="py-3 px-4 text-center font-mono font-bold text-slate-600">
+                            {{ "{:,}".format(e.quantity_completed) }}
+                        </td>
+
+                        <!-- Rejected Qty -->
+                        <td class="py-3 px-4 text-center font-mono">
+                            {% if e.rejected_quantity > 0 %}
+                            <span class="text-rose-600 font-bold bg-rose-50 px-1.5 py-0.5 rounded text-[11px] border border-rose-200">
+                                -{{ "{:,}".format(e.rejected_quantity) }}
+                            </span>
+                            {% else %}
+                            <span class="text-slate-300">0</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Payable Qty -->
+                        <td class="py-3 px-4 text-center bg-blue-50/40 font-mono font-bold text-blue-900">
+                            {{ "{:,}".format(e.payable_quantity) }}
+                        </td>
+
+                        <!-- Total Wages -->
+                        <td class="py-3 px-4 text-right bg-emerald-50/40 font-mono font-bold text-emerald-800 text-sm whitespace-nowrap">
+                            ₹{{ "{:,.2f}".format(e.total_amount) }}
+                        </td>
+
+                        <!-- Payment Status -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            {% if e.payment_status == 'PAID' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200" title="{{ e.payout_reference or 'Settled' }}">
+                                <i class="fas fa-check-circle text-[9px] mr-1 text-emerald-600"></i> PAID
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <i class="fas fa-clock text-[9px] mr-1 text-amber-600"></i> UNPAID
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center space-x-1">
+                                <a href="{{ url_for('piece_rate.worker_statement', worker_id=e.worker_id) }}" 
+                                   class="p-1 rounded text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition" 
+                                   title="Worker Item-Wise Statement & Wage Slip">
+                                    <i class="fas fa-file-invoice text-xs"></i>
+                                </a>
+                                <button type="button" 
+                                        onclick="openEditEntryModal('{{ e.id }}', '{{ e.worker_name }}', '{{ e.item_name }}', '{{ e.quantity_completed }}', '{{ e.rejected_quantity }}', '{{ e.rate_per_unit }}', '{{ e.job_card_no or '' }}', '{{ e.payment_status }}', '{{ e.remarks or '' }}')"
+                                        class="p-1 rounded text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition" 
+                                        title="Edit Work Log">
+                                    <i class="fas fa-pencil text-xs"></i>
+                                </button>
+                                <button type="button" 
+                                        onclick="openDeleteEntryModal('{{ e.id }}', '{{ e.worker_name }}', '{{ e.item_name }}', '{{ e.payable_quantity }}', '{{ e.total_amount }}')"
+                                        class="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition" 
+                                        title="Delete Entry">
+                                    <i class="fas fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="py-12 text-center text-slate-400 italic">
+                            <i class="fas fa-cubes-stacked text-3xl mb-2 text-slate-300 block"></i>
+                            No piece-rate work entries recorded for this filter criteria.
+                            <div class="mt-3">
+                                <button type="button" onclick="openLogQtyModal()" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700">
+                                    <i class="fas fa-plus mr-1"></i> Log First Piece-Rate Entry
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: LOG ITEM-WISE QUANTITY (WITH DYNAMIC CALCULATION) -->
+<!-- ========================================================================= -->
+<div id="logQtyModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-cubes"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Log Contract Work Quantity</h3>
+                    <p class="text-[11px] text-slate-400">Item-wise piece rate entry with automatic wage computation</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('logQtyModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('piece_rate.log_entry') }}" method="POST" class="p-5 space-y-4" id="logQtyForm">
+            
+            <!-- Worker Selection -->
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Contract Worker <span class="text-rose-500">*</span></label>
+                <select name="worker_id" id="modalWorkerSelect" required class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="">-- Select Registered Contract Worker --</option>
+                    {% for w in active_workers %}
+                    <option value="{{ w.id }}">{{ w.worker_code }} - {{ w.name }} ({{ w.department_category }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Date & Job Card -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Work Date <span class="text-rose-500">*</span></label>
+                    <input type="date" name="work_date" value="{{ selected_date if selected_date != 'ALL' else '' }}" required
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Job Card / Batch #</label>
+                    <input type="text" name="job_card_no" placeholder="e.g. JC-8492"
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+            </div>
+
+            <!-- Item Selection -->
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Select Piece-Rate Item <span class="text-rose-500">*</span></label>
+                <select name="item_id" id="modalItemSelect" onchange="onItemSelectionChanged()" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="" data-rate="0.0" data-unit="Pcs">-- Custom / Other Item --</option>
+                    {% for i in active_items %}
+                    <option value="{{ i.id }}" data-name="{{ i.item_name }}" data-rate="{{ i.default_rate }}" data-unit="{{ i.unit_measure }}">
+                        {{ i.item_name }} (₹{{ i.default_rate }} / {{ i.unit_measure }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Custom item name (if custom) -->
+            <div id="customItemNameContainer">
+                <label class="block text-xs font-bold text-slate-700 mb-1">Item / Task Description</label>
+                <input type="text" name="custom_item_name" id="modalCustomItemName" placeholder="e.g. Spiral Binding 200 Pages"
+                       class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <!-- Quantities & Rate -->
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Gross Completed <span class="text-rose-500">*</span></label>
+                    <input type="number" name="quantity_completed" id="modalQtyCompleted" min="1" step="1" required placeholder="0"
+                           oninput="calculateModalTotal()"
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Rejected / Spoilage</label>
+                    <input type="number" name="rejected_quantity" id="modalQtyRejected" min="0" step="1" value="0"
+                           oninput="calculateModalTotal()"
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Rate per Unit (₹) <span class="text-rose-500">*</span></label>
+                    <input type="number" name="rate_per_unit" id="modalRatePerUnit" min="0" step="0.01" required placeholder="0.00"
+                           oninput="calculateModalTotal()"
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <input type="hidden" name="unit_measure" id="modalUnitMeasure" value="Pcs">
+                </div>
+            </div>
+
+            <!-- LIVE CALCULATION DISPLAY BOX -->
+            <div class="bg-gradient-to-r from-blue-50 to-emerald-50 border border-blue-200 rounded-xl p-3.5 space-y-1">
+                <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span>Payable Output:</span>
+                    <span class="font-mono font-bold text-blue-900" id="livePayableDisplay">0 Pcs</span>
+                </div>
+                <div class="flex items-center justify-between text-sm font-bold text-slate-800 pt-1 border-t border-blue-200/60">
+                    <span>Calculated Total Wages:</span>
+                    <span class="font-mono text-emerald-700 text-base" id="liveTotalDisplay">₹0.00</span>
+                </div>
+            </div>
+
+            <!-- Remarks -->
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Remarks / Shift Notes</label>
+                <input type="text" name="remarks" placeholder="Optional notes (e.g. Day Shift, Machine #2)"
+                       class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('logQtyModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+                    <i class="fas fa-check mr-1.5"></i> Save Work Entry
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT WORK ENTRY -->
+<!-- ========================================================================= -->
+<div id="editEntryModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Edit Work Entry</h3>
+            <button type="button" onclick="closeModal('editEntryModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="editEntryForm" method="POST" class="p-5 space-y-3.5">
+            <div>
+                <p class="text-xs text-slate-500">Worker: <strong id="editWorkerName" class="text-slate-800"></strong></p>
+                <p class="text-xs text-slate-500">Item: <strong id="editItemName" class="text-slate-800"></strong></p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Completed Qty</label>
+                    <input type="number" name="quantity_completed" id="editQtyCompleted" required min="1"
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Rejected Qty</label>
+                    <input type="number" name="rejected_quantity" id="editQtyRejected" min="0"
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Rate per Unit (₹)</label>
+                    <input type="number" name="rate_per_unit" id="editRatePerUnit" step="0.01" required min="0"
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Payment Status</label>
+                    <select name="payment_status" id="editPaymentStatus" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg font-bold">
+                        <option value="UNPAID">UNPAID</option>
+                        <option value="PAID">PAID (Settled)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Job Card #</label>
+                <input type="text" name="job_card_no" id="editJobCardNo" class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Remarks</label>
+                <input type="text" name="remarks" id="editRemarks" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('editEntryModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Update Entry</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: DELETE WORK ENTRY -->
+<!-- ========================================================================= -->
+<div id="deleteEntryModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl p-5 text-center">
+        <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+            <i class="fas fa-trash-can text-lg"></i>
+        </div>
+        <h3 class="font-bold text-sm text-slate-900">Delete Piece-Rate Work Entry?</h3>
+        <p class="text-xs text-slate-500 mt-1" id="deleteEntryDetails"></p>
+        
+        <form id="deleteEntryForm" method="POST" class="mt-4 flex items-center justify-center space-x-2">
+            <button type="button" onclick="closeModal('deleteEntryModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">Cancel</button>
+            <button type="submit" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold">Yes, Delete</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+}
+
+function openLogQtyModal() {
+    openModal('logQtyModal');
+    onItemSelectionChanged();
+    calculateModalTotal();
+}
+
+function onItemSelectionChanged() {
+    const sel = document.getElementById('modalItemSelect');
+    const opt = sel.options[sel.selectedIndex];
+    const rate = opt.getAttribute('data-rate') || '0';
+    const unit = opt.getAttribute('data-unit') || 'Pcs';
+    const name = opt.getAttribute('data-name') || '';
+
+    const rateInput = document.getElementById('modalRatePerUnit');
+    const unitInput = document.getElementById('modalUnitMeasure');
+    const customNameInput = document.getElementById('modalCustomItemName');
+
+    if (opt.value) {
+        rateInput.value = parseFloat(rate).toFixed(2);
+        unitInput.value = unit;
+        customNameInput.value = name;
+    } else {
+        rateInput.value = '';
+        unitInput.value = 'Pcs';
+    }
+    calculateModalTotal();
+}
+
+function calculateModalTotal() {
+    const qty = parseInt(document.getElementById('modalQtyCompleted').value) || 0;
+    const rej = parseInt(document.getElementById('modalQtyRejected').value) || 0;
+    const rate = parseFloat(document.getElementById('modalRatePerUnit').value) || 0.0;
+    const unit = document.getElementById('modalUnitMeasure').value || 'Pcs';
+
+    const payable = Math.max(0, qty - rej);
+    const total = payable * rate;
+
+    document.getElementById('livePayableDisplay').innerText = payable.toLocaleString() + ' ' + unit + (rej > 0 ? ' (Gross: ' + qty + ' - Rej: ' + rej + ')' : '');
+    document.getElementById('liveTotalDisplay').innerText = '₹' + total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function openEditEntryModal(id, workerName, itemName, qty, rej, rate, jobNo, status, remarks) {
+    document.getElementById('editEntryForm').action = "/piece-rate/edit-entry/" + id;
+    document.getElementById('editWorkerName').innerText = workerName;
+    document.getElementById('editItemName').innerText = itemName;
+    document.getElementById('editQtyCompleted').value = qty;
+    document.getElementById('editQtyRejected').value = rej;
+    document.getElementById('editRatePerUnit').value = parseFloat(rate).toFixed(2);
+    document.getElementById('editJobCardNo').value = jobNo;
+    document.getElementById('editPaymentStatus').value = status;
+    document.getElementById('editRemarks').value = remarks;
+    openModal('editEntryModal');
+}
+
+function openDeleteEntryModal(id, workerName, itemName, payableQty, totalAmt) {
+    document.getElementById('deleteEntryForm').action = "/piece-rate/delete-entry/" + id;
+    document.getElementById('deleteEntryDetails').innerText = workerName + " • " + itemName + " (" + payableQty + " pcs = ₹" + parseFloat(totalAmt).toFixed(2) + ")";
+    openModal('deleteEntryModal');
+}
+</script>
+{% endblock %}

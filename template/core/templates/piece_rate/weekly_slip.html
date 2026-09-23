@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Wage Slip - {{ worker.worker_name }} ({{ worker.worker_code }}) - {{ week_label }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .slip-container { border: 1px solid #cbd5e1 !important; box-shadow: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen py-8 text-slate-800 antialiased font-sans">
+
+    <!-- TOP TOOLBAR (HIDDEN ON PRINT) -->
+    <div class="no-print max-w-3xl mx-auto mb-4 flex items-center justify-between px-4">
+        <a href="{{ url_for('piece_rate.weekly_salary', start_date=week_start, end_date=week_end) }}" 
+           class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-200 text-slate-700 shadow-xs transition">
+            <i class="fas fa-arrow-left mr-1.5"></i> Back to Weekly Register
+        </a>
+        <div class="flex items-center space-x-2">
+            <button onclick="window.print()" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-print mr-1.5"></i> Print Wage Slip
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN SLIP CONTAINER -->
+    <div class="slip-container max-w-3xl mx-auto bg-white rounded-2xl border border-slate-300 shadow-sm p-8 space-y-6">
+        
+        <!-- HEADER -->
+        <div class="border-b-2 border-slate-900 pb-4 flex items-start justify-between">
+            <div>
+                <div class="flex items-center space-x-2.5">
+                    <div class="w-9 h-9 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-base">
+                        VP
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-black text-slate-900 tracking-tight uppercase">{{ company_info.company_name }}</h1>
+                        {% if company_info.address %}
+                        <p class="text-[11px] text-slate-600 font-medium">{{ company_info.address }}</p>
+                        {% endif %}
+                        <div class="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500 font-mono mt-0.5">
+                            {% if company_info.phone %}<span>Tel: {{ company_info.phone }}</span>{% endif %}
+                            {% if company_info.email %}<span>• {{ company_info.email }}</span>{% endif %}
+                            {% if company_info.gstin %}<span>• GSTIN: {{ company_info.gstin }}</span>{% endif %}
+                            {% if company_info.factory_license_no %}<span>• Lic: {{ company_info.factory_license_no }}</span>{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2.5 inline-block px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-900 font-bold text-[11px] uppercase tracking-wider">
+                    WEEKLY CONTRACTOR PIECE-RATE WAGE SLIP
+                </div>
+            </div>
+            <div class="text-right space-y-1">
+                <div class="inline-block px-3 py-1 rounded bg-slate-100 font-mono text-xs font-bold text-slate-800">
+                    {{ week_label }}
+                </div>
+                <p class="text-[10px] text-slate-400 font-mono">Period: {{ week_start }} to {{ week_end }}</p>
+                <p class="text-[10px] text-slate-400 font-mono">Printed: {{ date.today() if date else '' }}</p>
+            </div>
+        </div>
+
+        <!-- CONTRACTOR PROFILE DETAILS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Worker Code</span>
+                <span class="font-mono font-bold text-slate-900 text-sm">{{ worker.worker_code }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Contractor Name</span>
+                <span class="font-bold text-slate-900 text-sm">{{ worker.worker_name }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Trade Category</span>
+                <span class="font-semibold text-slate-800">{{ worker.department_category }}</span>
+            </div>
+            <div>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Payment Mode & Mobile</span>
+                <span class="font-mono text-slate-700">{{ worker.payment_mode }} • {{ worker.worker_phone or 'N/A' }}</span>
+            </div>
+        </div>
+
+        <!-- WEEKLY DAYS WORKED SUMMARY STRIP -->
+        <div class="flex items-center justify-between bg-blue-50/70 border border-blue-200 rounded-xl px-4 py-2.5 text-xs">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-calendar-check text-blue-600"></i>
+                <span class="text-slate-700">Days Active in Week: <strong class="text-blue-900 font-mono font-bold">{{ worker.days_worked }} Day{% if worker.days_worked != 1 %}s{% endif %}</strong></span>
+            </div>
+            <div class="text-slate-500 font-mono text-[11px]">
+                Dates: {% for d in worker.sorted_dates %}<span class="bg-white px-1.5 py-0.5 rounded border border-blue-200 text-blue-900 font-bold ml-1">{{ d }}</span>{% else %}<span class="italic">None</span>{% endfor %}
+            </div>
+        </div>
+
+        <!-- ITEM-WISE PRODUCTION & WAGE CALCULATION TABLE -->
+        <div class="space-y-2">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Item-Wise Production & Rate Calculation</h3>
+                <span class="text-[11px] text-slate-500 font-mono">{{ worker.items_breakdown|length }} Process Types</span>
+            </div>
+
+            <table class="w-full text-left text-xs border border-slate-200 rounded-xl overflow-hidden">
+                <thead>
+                    <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 text-[10px] font-bold uppercase tracking-wider">
+                        <th class="py-2.5 px-3 w-8 text-center">#</th>
+                        <th class="py-2.5 px-3">Item / Work Process</th>
+                        <th class="py-2.5 px-3 text-center">Unit</th>
+                        <th class="py-2.5 px-3 text-right">Piece Rate</th>
+                        <th class="py-2.5 px-3 text-center">Gross Qty</th>
+                        <th class="py-2.5 px-3 text-center">Rej</th>
+                        <th class="py-2.5 px-3 text-center bg-blue-50 font-bold text-blue-900">Payable Output</th>
+                        <th class="py-2.5 px-3 text-right bg-emerald-50 font-bold text-emerald-900">Total Wages</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 text-[11px] font-mono">
+                    {% for itm in worker.items_breakdown %}
+                    <tr>
+                        <td class="py-2 px-3 text-center text-slate-400 font-sans">{{ loop.index }}</td>
+                        <td class="py-2 px-3 font-sans font-bold text-slate-900">{{ itm.item_name }}</td>
+                        <td class="py-2 px-3 text-center text-slate-600 font-sans">{{ itm.unit_measure }}</td>
+                        <td class="py-2 px-3 text-right text-slate-700">₹{{ "{:,.2f}".format(itm.rate) }}</td>
+                        <td class="py-2 px-3 text-center text-slate-600">{{ "{:,}".format(itm.gross_qty) }}</td>
+                        <td class="py-2 px-3 text-center text-rose-600">{{ "-{:,}".format(itm.rejected_qty) if itm.rejected_qty > 0 else "0" }}</td>
+                        <td class="py-2 px-3 text-center bg-blue-50/50 font-bold text-blue-900">{{ "{:,}".format(itm.payable_qty) }}</td>
+                        <td class="py-2 px-3 text-right bg-emerald-50/50 font-bold text-emerald-800">₹{{ "{:,.2f}".format(itm.total_amount) }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-4 text-center text-slate-400 italic">No piece-rate output logged for this week.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900 text-xs">
+                        <td colspan="4" class="py-2.5 px-3 text-right uppercase text-[10px] tracking-wider font-sans">Total Weekly Output:</td>
+                        <td class="py-2.5 px-3 text-center font-mono">{{ "{:,}".format(worker.total_gross_qty) }}</td>
+                        <td class="py-2.5 px-3 text-center font-mono text-rose-600">{{ "-{:,}".format(worker.total_rejected_qty) if worker.total_rejected_qty > 0 else "0" }}</td>
+                        <td class="py-2.5 px-3 text-center font-mono bg-blue-100 text-blue-950 font-black">{{ "{:,}".format(worker.total_payable_qty) }} pcs</td>
+                        <td class="py-2.5 px-3 text-right font-mono bg-emerald-100 text-emerald-950 font-black text-sm">₹{{ "{:,.2f}".format(worker.total_wages) }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- SETTLEMENT SUMMARY BOX -->
+        <div class="grid grid-cols-3 gap-3 border-t-2 border-slate-900 pt-4">
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <span class="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Gross Week Earnings</span>
+                <span class="font-mono font-bold text-slate-900 text-base">₹{{ "{:,.2f}".format(worker.total_wages) }}</span>
+            </div>
+            <div class="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+                <span class="text-emerald-700 block text-[10px] uppercase font-bold tracking-wider">Settled / Paid to Date</span>
+                <span class="font-mono font-bold text-emerald-800 text-base">₹{{ "{:,.2f}".format(worker.paid_wages) }}</span>
+            </div>
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs">
+                <span class="text-amber-700 block text-[10px] uppercase font-bold tracking-wider">Net Amount Payable</span>
+                <span class="font-mono font-black text-amber-900 text-lg">₹{{ "{:,.2f}".format(worker.unpaid_wages if worker.unpaid_wages > 0 else worker.total_wages) }}</span>
+            </div>
+        </div>
+
+        <!-- PAYMENT DETAILS -->
+        {% if worker.upi_or_bank_details %}
+        <div class="text-[11px] text-slate-500 font-mono bg-slate-50 p-2.5 rounded-lg border border-slate-200 flex items-center justify-between">
+            <span>Payment Account: <strong>{{ worker.payment_mode }}</strong> ({{ worker.upi_or_bank_details }})</span>
+            <span>Status: <strong class="{% if worker.status == 'PAID' %}text-emerald-700{% else %}text-amber-700{% endif %}">{{ worker.status }}</strong></span>
+        </div>
+        {% endif %}
+
+        <!-- SIGNATURES -->
+        <div class="pt-10 grid grid-cols-2 gap-8 text-center text-xs font-semibold text-slate-700">
+            <div class="space-y-10">
+                <div class="border-t border-slate-400 pt-2 w-3/4 mx-auto">
+                    {{ company_info.supervisor_name or 'Authorized Supervisor' }}
+                    <p class="text-[10px] text-slate-400 font-normal">Authorized Signatory • {{ company_info.company_name }}</p>
+                </div>
+            </div>
+            <div class="space-y-10">
+                <div class="border-t border-slate-400 pt-2 w-3/4 mx-auto">
+                    Contractor Signature / Thumb
+                    <p class="text-[10px] text-slate-400 font-normal">{{ worker.worker_name }} ({{ worker.worker_code }})</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</body>
+</html>

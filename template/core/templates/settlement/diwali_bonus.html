@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Diwali Annual Bonus Calculator | {{ company_info.company_name }}{% endblock %}
+{% block header_title %}Diwali Festival Bonus Calculator (Payment of Bonus Act, 1965){% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- BREADCRUMB & CONTROLS -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <a href="{{ url_for('settlement.index') }}" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <h2 class="text-sm font-bold text-slate-800">Diwali Annual Bonus Register • Year {{ year }}</h2>
+                <p class="text-xs text-slate-500">Statutory minimum: 8.33% (approx 1 month wage) • Maximum: 20.00%</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <!-- Year Selector -->
+            <form method="GET" class="flex items-center space-x-1.5">
+                <select name="year" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 font-bold bg-slate-50">
+                    {% for y in range(year - 2, year + 2) %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>Year {{ y }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <a href="{{ url_for('settlement.print_diwali_register', year=year) }}" target="_blank" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                <i class="fas fa-print mr-1.5"></i> Form C Register
+            </a>
+        </div>
+    </div>
+
+    <!-- METRICS CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Calculated Bonus Pool</p>
+            <h3 class="text-2xl font-black text-amber-600 mt-1 font-mono">{{ company_info.currency_symbol }}{{ "%.2f"|format(total_pool) }}</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">{{ bonus_records|length }} Active employees covered</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-emerald-600">Disbursed / Paid Out</p>
+            <h3 class="text-2xl font-black text-emerald-700 mt-1 font-mono">{{ company_info.currency_symbol }}{{ "%.2f"|format(total_paid) }}</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">Festival advance / bank transfers</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-amber-600">Pending Disbursement</p>
+            <h3 class="text-2xl font-black text-amber-700 mt-1 font-mono">{{ company_info.currency_symbol }}{{ "%.2f"|format(total_pending) }}</h3>
+            <p class="text-[11px] text-slate-500 mt-0.5">Ready for Diwali payout</p>
+        </div>
+    </div>
+
+    <!-- CALCULATOR FORM CARD -->
+    <div class="bg-gradient-to-r from-amber-50 to-amber-100/60 p-5 rounded-xl border border-amber-200 shadow-sm">
+        <div class="flex items-center space-x-2 mb-3">
+            <i class="fas fa-calculator text-amber-600 text-base"></i>
+            <h3 class="text-sm font-bold text-amber-900">Run / Recalculate Diwali Bonus for All Employees</h3>
+        </div>
+        <form method="POST" class="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+            <input type="hidden" name="action" value="calculate">
+            <input type="hidden" name="year" value="{{ year }}">
+
+            <div>
+                <label class="block text-xs font-bold text-amber-900 mb-1">Financial / Assessment Year</label>
+                <input type="number" name="year" value="{{ year }}" readonly class="w-full text-xs font-mono font-bold rounded-lg border-amber-300 bg-white/80 py-2 px-3">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-amber-900 mb-1">Diwali Bonus Percentage (%)</label>
+                <div class="relative">
+                    <input type="number" step="0.01" min="8.33" max="20.0" name="bonus_percentage" value="8.33" required class="w-full text-xs font-mono font-bold rounded-lg border-amber-300 bg-white py-2 px-3 pr-8">
+                    <span class="absolute right-3 top-2 text-xs font-bold text-amber-700">%</span>
+                </div>
+                <span class="text-[10px] text-amber-700 block mt-0.5">Statutory range: 8.33% to 20.00%</span>
+            </div>
+
+            <div class="sm:col-span-2 flex items-center space-x-2">
+                <button type="submit" class="w-full py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center">
+                    <i class="fas fa-wand-magic-sparkles mr-2"></i> Compute Bonus for All Workers
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- RECORDS TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-table-list text-slate-500"></i>
+                <h3 class="text-sm font-bold text-slate-800">Bonus Register (Year {{ year }})</h3>
+            </div>
+            {% if total_pending > 0 %}
+            <form method="POST" onsubmit="return confirm('Mark all {{ bonus_records|length }} workers as PAID for Year {{ year }}?');">
+                <input type="hidden" name="action" value="mark_all_paid">
+                <input type="hidden" name="year" value="{{ year }}">
+                <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition shadow-sm">
+                    <i class="fas fa-check-double mr-1.5"></i> Mark All as Disbursed
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+                <thead class="bg-slate-50 text-slate-500 uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                        <th class="py-2.5 px-3">Emp Code</th>
+                        <th class="py-2.5 px-3">Employee Name</th>
+                        <th class="py-2.5 px-3">Department</th>
+                        <th class="py-2.5 px-3 text-right">Annual Earned Wages</th>
+                        <th class="py-2.5 px-3 text-center">Bonus %</th>
+                        <th class="py-2.5 px-3 text-right">Diwali Bonus Payable</th>
+                        <th class="py-2.5 px-3 text-center">Status</th>
+                        <th class="py-2.5 px-3 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-sans">
+                    {% for r in bonus_records %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-2.5 px-3 font-mono font-bold text-blue-700">{{ r.emp_no }}</td>
+                        <td class="py-2.5 px-3 font-bold text-slate-800">
+                            {{ r.first_name }} {{ r.last_name }}
+                            <span class="block text-[10px] font-normal text-slate-400">{{ r.designation }}</span>
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-600">{{ r.dept_name }}</td>
+                        <td class="py-2.5 px-3 text-right font-mono font-semibold">{{ company_info.currency_symbol }}{{ "%.2f"|format(r.annual_earned_wages) }}</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-bold text-amber-700">{{ "%.2f"|format(r.bonus_percentage) }}%</td>
+                        <td class="py-2.5 px-3 text-right font-mono font-extrabold text-amber-700 text-sm">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(r.bonus_amount) }}
+                        </td>
+                        <td class="py-2.5 px-3 text-center">
+                            {% if r.payout_status == 'PAID' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">PAID</span>
+                            <span class="block text-[9px] text-slate-400 font-mono">{{ r.payout_date }}</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">PENDING</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 text-center">
+                            {% if r.payout_status == 'PENDING' %}
+                            <form method="POST" class="inline">
+                                <input type="hidden" name="action" value="mark_paid">
+                                <input type="hidden" name="record_id" value="{{ r.id }}">
+                                <button type="submit" class="px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold border border-emerald-200">
+                                    <i class="fas fa-check mr-1"></i> Pay
+                                </button>
+                            </form>
+                            {% else %}
+                            <span class="text-[11px] text-slate-400 font-mono">{{ r.payout_reference or 'Settled' }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-8 text-slate-400 italic">
+                            No bonus calculations found for year {{ year }}. Use the calculator above to compute Diwali bonus.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,1222 @@
+{% extends "base.html" %}
+
+{% block title %}All Punches per Person | Vasantham Printers{% endblock %}
+{% block header_title %}Daily All Punches Register (Biometric Audit){% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- SUB-NAVIGATION TABS -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+        <a href="{{ url_for('attendance.index', date=selected_date) }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-calendar-day mr-1.5 text-slate-500"></i> Single Day View
+        </a>
+        <a href="{{ url_for('attendance.all_punches', date=selected_date) }}" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-sm">
+            <i class="fas fa-fingerprint mr-1.5"></i> All Punches per Person
+        </a>
+        <a href="{{ url_for('attendance.in_out_report') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-clock-rotate-left mr-1.5 text-slate-500"></i> Daily In & Out Register
+        </a>
+        <a href="{{ url_for('attendance.matrix') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-table-cells mr-1.5 text-slate-500"></i> Monthly Matrix
+        </a>
+        <a href="{{ url_for('attendance.audit_log') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-file-shield mr-1.5 text-slate-500"></i> Edit Audit Log
+        </a>
+    </div>
+
+    <!-- DATE & FILTER BAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <!-- TOP ROW: QUICK PERIOD FILTER PILLS (today, 7 days, lastweak & last month) -->
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-500 mr-1 flex items-center">
+                    <i class="fas fa-filter text-blue-500 mr-1.5"></i> Period:
+                </span>
+                
+                <!-- TODAY -->
+                <a href="{{ url_for('attendance.all_punches', range='today', dept=selected_dept, emp_id=selected_emp) }}"
+                   class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 {% if range_opt == 'today' %}bg-blue-600 text-white shadow-sm ring-2 ring-blue-400{% else %}bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200{% endif %}">
+                    <i class="fas fa-calendar-day text-[11px]"></i> Today
+                </a>
+
+                <!-- 7 DAYS -->
+                <a href="{{ url_for('attendance.all_punches', range='7days', dept=selected_dept, emp_id=selected_emp) }}"
+                   class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 {% if range_opt == '7days' %}bg-blue-600 text-white shadow-sm ring-2 ring-blue-400{% else %}bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200{% endif %}">
+                    <i class="fas fa-calendar-week text-[11px]"></i> 7 Days
+                </a>
+
+                <!-- LAST WEEK -->
+                <a href="{{ url_for('attendance.all_punches', range='lastweek', dept=selected_dept, emp_id=selected_emp) }}"
+                   class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 {% if range_opt == 'lastweek' %}bg-blue-600 text-white shadow-sm ring-2 ring-blue-400{% else %}bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200{% endif %}">
+                    <i class="fas fa-calendar-days text-[11px]"></i> Last Week
+                </a>
+
+                <!-- LAST MONTH -->
+                <a href="{{ url_for('attendance.all_punches', range='lastmonth', dept=selected_dept, emp_id=selected_emp) }}"
+                   class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 {% if range_opt == 'lastmonth' %}bg-blue-600 text-white shadow-sm ring-2 ring-blue-400{% else %}bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200{% endif %}">
+                    <i class="fas fa-calendar-check text-[11px]"></i> Last Month
+                </a>
+            </div>
+
+            <!-- ACTIVE RANGE BADGE -->
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-xs font-semibold text-blue-900 shadow-2xs">
+                <i class="far fa-calendar text-blue-600"></i>
+                <span>Range: <strong>{{ range_label }}</strong></span>
+            </div>
+        </div>
+
+        <!-- BOTTOM ROW: DATE PICKER, DEPT & EMP DROPDOWNS, ACTION BUTTONS -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <form method="GET" action="{{ url_for('attendance.all_punches') }}" class="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="range" value="custom">
+
+                <!-- Day Navigation / Date Picker -->
+                <div class="flex items-center space-x-1">
+                    {% if not is_multi_day %}
+                    <a href="{{ url_for('attendance.all_punches', date=prev_date, dept=selected_dept, emp_id=selected_emp) }}" 
+                       class="p-1.5 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs transition" title="Previous Day">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                    {% endif %}
+                    
+                    <input type="date" name="date" value="{{ selected_date }}" onchange="this.form.submit()" 
+                           class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-mono font-semibold" title="Jump to Specific Date">
+
+                    {% if not is_multi_day %}
+                    <a href="{{ url_for('attendance.all_punches', date=next_date, dept=selected_dept, emp_id=selected_emp) }}" 
+                       class="p-1.5 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs transition" title="Next Day">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% endif %}
+                </div>
+
+                <!-- Department Filter -->
+                <select name="dept" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                    <option value="">All Departments</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if selected_dept|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <!-- Employee Filter -->
+                <select name="emp_id" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                    <option value="">All Employees</option>
+                    {% for e in active_employees %}
+                    <option value="{{ e.id }}" {% if selected_emp|string == e.id|string %}selected{% endif %}>{{ e.emp_no }} - {{ e.first_name }} {{ e.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" onclick="openModal('manualPunchModal')" 
+                        class="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                    <i class="fas fa-fingerprint mr-1.5"></i> Manual Punch IN / OUT
+                </button>
+                <a href="{{ url_for('attendance.export_all_punches_csv', range=range_opt, date=selected_date, dept=selected_dept, emp_id=selected_emp) }}" 
+                   class="inline-flex items-center px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                    <i class="fas fa-file-csv mr-1.5 text-emerald-400"></i> Export CSV
+                </a>
+                <button type="button" onclick="window.print()" 
+                        class="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 rounded-lg text-xs font-bold transition shadow-sm">
+                    <i class="fas fa-print mr-1.5"></i> Print
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- COMPLIANCE AUDIT NOTICE -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+        <div class="flex items-center space-x-2">
+            <i class="fas fa-shield-halved text-amber-600 text-sm"></i>
+            <span><strong>Compliance Rule:</strong> Attendance punches <strong>cannot be deleted</strong>. Any manual entry or timestamp edit is permanently recorded in the <a href="{{ url_for('attendance.audit_log') }}" class="underline font-bold text-amber-800 hover:text-amber-950">Audit Trail</a> with reason and author.</span>
+        </div>
+        <a href="{{ url_for('attendance.audit_log') }}" class="text-[11px] font-bold text-amber-800 hover:underline shrink-0 ml-2">
+            View Audit Log &raquo;
+        </a>
+    </div>
+
+    <!-- SUMMARY METRICS -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Selected Period</span>
+            <span class="text-sm font-extrabold text-slate-800 font-mono truncate block mt-1" title="{{ range_label }}">{{ range_label }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total Biometric Punches</span>
+            <span class="text-2xl font-black text-blue-700">{{ total_punches_day }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Staff with Punches</span>
+            <span class="text-2xl font-black text-emerald-700">{{ total_active_staff }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Terminal Source</span>
+            <span class="text-xs font-bold text-indigo-700 block mt-1">ZKTeco Biometric Terminal</span>
+            <span class="text-[10px] text-slate-400 font-mono">192.168.101.201:4370</span>
+        </div>
+    </div>
+
+    <!-- VIEW MODE SWITCHER & QUICK SEARCH -->
+    <div class="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="relative w-full max-w-sm">
+            <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="punchSearch" onkeyup="filterPunches()" placeholder="Search staff name or employee ID..." 
+                   class="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border-slate-200 focus:border-blue-500 bg-slate-50">
+        </div>
+
+        <div class="flex items-center space-x-2 select-none">
+            <button type="button" onclick="switchView('PERSON')" id="btnViewPerson" 
+                    class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition bg-blue-600 text-white shadow-sm flex items-center">
+                <i class="fas fa-user-clock mr-1.5"></i> Per-Person Cards
+            </button>
+            <button type="button" onclick="switchView('STREAM')" id="btnViewStream" 
+                    class="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition flex items-center">
+                <i class="fas fa-list-ol mr-1.5"></i> Chronological Stream ({{ all_raw_punches|length }})
+            </button>
+        </div>
+    </div>
+
+    <!-- FILTER TABS FOR PER-PERSON CARDS -->
+    <div class="flex items-center space-x-2 text-xs select-none" id="personCardFilterTabs">
+        <button type="button" onclick="filterCardStatus('ALL')" id="tabCardAll" 
+                class="card-filter-tab active px-3 py-1.5 rounded-lg font-bold bg-blue-600 text-white shadow-sm transition">
+            All Staff ({{ emp_punch_cards|length }})
+        </button>
+        <button type="button" onclick="filterCardStatus('PRESENT')" id="tabCardPresent" 
+                class="card-filter-tab px-3 py-1.5 rounded-lg font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition">
+            <i class="fas fa-check-circle text-emerald-500 mr-1"></i> Present / Punched ({{ total_active_staff }})
+        </button>
+        <button type="button" onclick="filterCardStatus('LEAVE')" id="tabCardLeave" 
+                class="card-filter-tab px-3 py-1.5 rounded-lg font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition">
+            <i class="fas fa-calendar-minus text-indigo-500 mr-1"></i> Leave / Weekly Off
+        </button>
+        <button type="button" onclick="filterCardStatus('ABSENT')" id="tabCardAbsent" 
+                class="card-filter-tab px-3 py-1.5 rounded-lg font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition">
+            <i class="fas fa-circle-exclamation text-rose-500 mr-1"></i> Absent / No Punches ({{ emp_punch_cards|length - total_active_staff }})
+        </button>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 1: PER-PERSON PUNCH CARDS (ALL PUNCHES IN DAY)      -->
+    <!-- ======================================================== -->
+    <div id="viewPersonCards" class="space-y-4">
+        {% for card in emp_punch_cards %}
+        {% if card.has_punches %}
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden punch-card" 
+             data-search="{{ card.employee.emp_no }} {{ card.employee.first_name }} {{ card.employee.last_name }} {{ card.employee.dept_name }}"
+             data-has-punches="true"
+             data-status="PRESENT">
+            
+            <!-- CARD HEADER -->
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div class="flex items-center space-x-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-sm flex items-center justify-center shadow-sm">
+                        {{ card.employee.first_name[:1] }}{{ card.employee.last_name[:1] if card.employee.last_name else '' }}
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h3 class="font-bold text-sm text-slate-900">{{ card.employee.first_name }} {{ card.employee.last_name }}</h3>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-200 text-slate-700">{{ card.employee.emp_no }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">{{ card.employee.dept_name }}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Scheduled Shift: <strong class="text-slate-700">{{ card.employee.shift_code }} ({{ card.employee.start_time }} - {{ card.employee.end_time }})</strong>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- PUNCH STATS SUMMARY & ADD PUNCH BUTTON -->
+                <!-- PUNCH STATS SUMMARY & TYPICAL LUNCH PATTERN -->
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    {% if is_multi_day %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-lg font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
+                        <i class="fas fa-fingerprint mr-1.5 text-indigo-500"></i>
+                        {{ card.punch_count }} Punches ({{ card.days_present_count }} Days Active)
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center px-3 py-1 rounded-lg font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs">
+                        <i class="fas fa-fingerprint mr-1.5 text-indigo-500"></i>
+                        {{ card.punch_count }} Punches Today
+                    </span>
+                    <span class="inline-flex items-center px-3 py-1 rounded-lg font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <i class="fas fa-sign-in-alt mr-1.5 text-emerald-500"></i>
+                        First IN: {{ card.first_in }}
+                    </span>
+                    <span class="inline-flex items-center px-3 py-1 rounded-lg font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        <i class="fas fa-sign-out-alt mr-1.5 text-indigo-500"></i>
+                        Last OUT: {{ card.last_out }}
+                    </span>
+                    {% if card.is_on_duty %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> Currently On Duty
+                    </span>
+                    {% endif %}
+                    {% endif %}
+
+                    {% if card.typical_lunch and card.typical_lunch.has_pattern %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200" title="{{ card.typical_lunch.sample_days }} lunch breaks measured in period">
+                        <i class="fas fa-clock-rotate-left mr-1.5 text-sky-500"></i> {{ card.typical_lunch.summary }}
+                    </span>
+                    {% endif %}
+
+                    {% if card.pending_gaps and card.pending_gaps|length > 0 %}
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-extrabold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse" title="{{ card.pending_gaps|length }} shift pattern gap(s) detected">
+                        <i class="fas fa-triangle-exclamation mr-1.5 text-rose-600"></i> {{ card.pending_gaps|length }} Missed Timing(s)
+                    </span>
+                    {% endif %}
+
+                    <button type="button" 
+                            onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', {{ card.punch_count }}, '{{ card.punches[-1].time if card.punches else '' }}', '{{ selected_date }}')"
+                            class="inline-flex items-center px-3.5 py-1.5 rounded-lg font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer"
+                            title="Add a manual punch entry for {{ card.employee.first_name }} (No limit)">
+                        <i class="fas fa-plus mr-1.5"></i> Add Punch
+                    </button>
+                </div>
+            </div>
+
+            {% if is_multi_day %}
+            <!-- MULTI-DAY BREAKDOWN PER PERSON -->
+            <div class="p-4 bg-white border-b border-slate-100 space-y-3">
+                <div class="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span><i class="fas fa-calendar-alt text-blue-500 mr-1.5"></i> Daily Breakdown ({{ card.days_present_count }} Active Days):</span>
+                    <span class="text-slate-400 font-normal font-mono text-[10px]">{{ card.punch_count }} Total Punches in Period</span>
+                </div>
+                
+                {% for day in card.day_groups %}
+                <div class="bg-slate-50/80 rounded-xl border border-slate-200/80 p-3 space-y-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2 text-xs pb-1 border-b border-slate-200/60">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                            <strong class="text-slate-900 font-bold">{{ day.date_label }}</strong>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 font-mono">{{ day.punch_count }} Punches</span>
+
+                            <!-- Lunch Pattern Badge -->
+                            {% if day.lunch and day.lunch.badge_text %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold shadow-2xs
+                                {% if day.lunch.badge_color == 'emerald' %}bg-emerald-50 text-emerald-800 border border-emerald-300
+                                {% elif day.lunch.badge_color == 'amber' %}bg-amber-50 text-amber-900 border border-amber-300
+                                {% elif day.lunch.badge_color == 'rose' %}bg-rose-50 text-rose-800 border border-rose-300 animate-pulse
+                                {% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+                                <i class="fas fa-utensils mr-1.5 text-[9px] {% if day.lunch.badge_color == 'emerald' %}text-emerald-600{% elif day.lunch.badge_color == 'rose' %}text-rose-600{% else %}text-amber-600{% endif %}"></i>
+                                {{ day.lunch.badge_text }}
+                            </span>
+                            {% endif %}
+
+                            <!-- Quick Suggestion Auto-Fill Button if Missed Lunch In / Out -->
+                            {% if day.lunch and day.lunch.suggested_label %}
+                            <button type="button" 
+                                    onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', {{ day.punch_count }}, '{{ day.punches[-1].time if day.punches else '' }}', '{{ day.date }}', '{{ day.lunch.suggested_time }}', '{{ day.lunch.suggested_type }}', 'Missed Lunch Break')"
+                                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs transition cursor-pointer"
+                                    title="Quick auto-fill suggested punch for {{ day.date }}">
+                                <i class="fas fa-wand-magic-sparkles text-[9px]"></i> {{ day.lunch.suggested_label }}
+                            </button>
+                            {% endif %}
+
+                            <!-- Inline Missed Shift Timings & 1-Click Approval -->
+                            {% if day.pending_gaps and day.pending_gaps|length > 0 %}
+                            {% for gap in day.pending_gaps %}
+                            <form action="{{ url_for('attendance.approve_missing_punch', alert_id=gap.id) }}" method="POST" class="inline m-0">
+                                <button type="submit" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold bg-rose-100 hover:bg-rose-200 text-rose-950 border border-rose-300 shadow-2xs transition cursor-pointer"
+                                        title="{{ gap.description }} - Click to 1-Click Approve immediately">
+                                    <i class="fas fa-triangle-exclamation text-rose-600"></i>
+                                    <span>Missed {{ gap.suggested_punch_type }}: <strong>{{ gap.expected_time[:5] }}</strong></span>
+                                    <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black">✓ Approve</span>
+                                </button>
+                            </form>
+                            {% endfor %}
+                            {% endif %}
+                        </div>
+
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center space-x-2 font-mono text-[11px]">
+                                <span class="text-emerald-700 font-semibold bg-emerald-50/80 px-2 py-0.5 rounded border border-emerald-200"><i class="fas fa-sign-in-alt mr-1 text-emerald-500"></i>IN: {{ day.first_in }}</span>
+                                <span class="text-indigo-700 font-semibold bg-indigo-50/80 px-2 py-0.5 rounded border border-indigo-200"><i class="fas fa-sign-out-alt mr-1 text-indigo-500"></i>OUT: {{ day.last_out }}</span>
+                            </div>
+                            <!-- '+ Add Punch' BUTTON FOR THIS SPECIFIC DATE -->
+                            <button type="button" 
+                                    onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', {{ day.punch_count }}, '{{ day.punches[-1].time if day.punches else '' }}', '{{ day.date }}')"
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition cursor-pointer"
+                                    title="Add manual punch entry on {{ day.date_label }} for {{ card.employee.first_name }}">
+                                <i class="fas fa-plus text-[10px]"></i> Add Punch
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Day Timeline Strip -->
+                    <div class="flex flex-wrap items-center gap-1.5 pt-1">
+                        {% for p in day.punches %}
+                        <div class="flex items-center">
+                            <div class="flex items-center px-2.5 py-1 rounded-lg border shadow-2xs text-[11px] font-mono font-bold
+                                {% if p.nature_color == 'emerald' %}bg-emerald-50 border-emerald-300 text-emerald-800
+                                {% elif p.nature_color == 'indigo' %}bg-indigo-50 border-indigo-300 text-indigo-800
+                                {% elif p.nature_color == 'amber' %}bg-amber-50 border-amber-300 text-amber-800
+                                {% else %}bg-blue-50 border-blue-300 text-blue-800{% endif %}">
+                                <i class="fas {{ p.icon }} text-[10px] mr-1.5 
+                                    {% if p.nature_color == 'emerald' %}text-emerald-600
+                                    {% elif p.nature_color == 'indigo' %}text-indigo-600
+                                    {% elif p.nature_color == 'amber' %}text-amber-600
+                                    {% else %}text-blue-600{% endif %}"></i>
+                                <span>#{{ p.punch_num }}: {{ p.time }}</span>
+                            </div>
+                            {% if not loop.last %}
+                            <div class="flex items-center px-1 text-slate-400 font-bold text-[10px]">
+                                <i class="fas fa-arrow-right text-[9px] mr-1 text-slate-300"></i>
+                                <span class="text-[9px] font-mono text-slate-500">{{ day.punches[loop.index].interval }}</span>
+                                <i class="fas fa-arrow-right text-[9px] ml-1 text-slate-300"></i>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- SINGLE DAY TIMELINE SEQUENCE STRIP -->
+            <div class="p-4 bg-white border-b border-slate-100">
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Punch Sequence Timeline:</span>
+                        {% if card.day_groups and card.day_groups[0].lunch and card.day_groups[0].lunch.badge_text %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold shadow-2xs
+                            {% if card.day_groups[0].lunch.badge_color == 'emerald' %}bg-emerald-50 text-emerald-800 border border-emerald-300
+                            {% elif card.day_groups[0].lunch.badge_color == 'amber' %}bg-amber-50 text-amber-900 border border-amber-300
+                            {% elif card.day_groups[0].lunch.badge_color == 'rose' %}bg-rose-50 text-rose-800 border border-rose-300 animate-pulse
+                            {% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %}">
+                            <i class="fas fa-utensils mr-1.5 text-[9px]"></i> {{ card.day_groups[0].lunch.badge_text }}
+                        </span>
+                        {% if card.day_groups[0].lunch.suggested_label %}
+                        <button type="button" 
+                                onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', {{ card.punch_count }}, '{{ card.punches[-1].time if card.punches else '' }}', '{{ card.day_groups[0].date }}', '{{ card.day_groups[0].lunch.suggested_time }}', '{{ card.day_groups[0].lunch.suggested_type }}', 'Missed Lunch Break')"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-xs transition cursor-pointer"
+                                title="Quick auto-fill suggested punch">
+                            <i class="fas fa-wand-magic-sparkles text-[9px]"></i> {{ card.day_groups[0].lunch.suggested_label }}
+                        </button>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                    
+                    <button type="button" 
+                            onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', {{ card.punch_count }}, '{{ card.punches[-1].time if card.punches else '' }}', '{{ selected_date }}')"
+                            class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition cursor-pointer"
+                            title="Add punch for {{ selected_date }}">
+                        <i class="fas fa-plus text-[10px]"></i> Add Punch for {{ selected_date }}
+                    </button>
+                </div>
+
+                {% if card.pending_gaps and card.pending_gaps|length > 0 %}
+                <div class="flex flex-wrap items-center gap-1.5 mb-3 p-2 bg-rose-50/70 border border-rose-200 rounded-lg">
+                    <span class="text-[11px] font-bold text-rose-800 flex items-center mr-1">
+                        <i class="fas fa-triangle-exclamation text-rose-600 mr-1.5"></i> Detected Missed Shift Timing:
+                    </span>
+                    {% for gap in card.pending_gaps %}
+                    <form action="{{ url_for('attendance.approve_missing_punch', alert_id=gap.id) }}" method="POST" class="inline m-0">
+                        <button type="submit" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-extrabold bg-rose-100 hover:bg-rose-200 text-rose-950 border border-rose-300 shadow-2xs transition cursor-pointer"
+                                title="{{ gap.description }} - Click to 1-Click Approve immediately">
+                            <i class="fas fa-triangle-exclamation text-rose-600"></i>
+                            <span>Missed {{ gap.suggested_punch_type }}: <strong>{{ gap.expected_time[:5] }}</strong></span>
+                            <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black">✓ Approve</span>
+                        </button>
+                    </form>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <div class="flex flex-wrap items-center gap-2">
+                    {% for p in card.punches %}
+                    <div class="flex items-center">
+                        <div class="flex items-center px-3 py-1.5 rounded-lg border shadow-xs text-xs font-mono font-bold
+                            {% if p.nature_color == 'emerald' %}bg-emerald-50 border-emerald-300 text-emerald-800
+                            {% elif p.nature_color == 'indigo' %}bg-indigo-50 border-indigo-300 text-indigo-800
+                            {% elif p.nature_color == 'amber' %}bg-amber-50 border-amber-300 text-amber-800
+                            {% else %}bg-blue-50 border-blue-300 text-blue-800{% endif %}">
+                            <i class="fas {{ p.icon }} text-[11px] mr-1.5 
+                                {% if p.nature_color == 'emerald' %}text-emerald-600
+                                {% elif p.nature_color == 'indigo' %}text-indigo-600
+                                {% elif p.nature_color == 'amber' %}text-amber-600
+                                {% else %}text-blue-600{% endif %}"></i>
+                            <span>#{{ p.punch_num }}: {{ p.time }}</span>
+                        </div>
+                        {% if not loop.last %}
+                        <div class="flex items-center px-1 text-slate-400 font-bold text-xs">
+                            <i class="fas fa-arrow-right text-[10px] mr-1 text-slate-300"></i>
+                            <span class="text-[10px] font-mono text-slate-500">{{ card.punches[loop.index].interval }}</span>
+                            <i class="fas fa-arrow-right text-[10px] ml-1 text-slate-300"></i>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- DETAILED PUNCH TABLE -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="bg-slate-50/70 border-b border-slate-100 text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                            <th class="py-2.5 px-4 w-16 text-center">Punch #</th>
+                            {% if is_multi_day %}
+                            <th class="py-2.5 px-4">Date</th>
+                            {% endif %}
+                            <th class="py-2.5 px-4">Time (24h)</th>
+                            <th class="py-2.5 px-4">Time (AM/PM)</th>
+                            <th class="py-2.5 px-4">Punch Action / Nature</th>
+                            <th class="py-2.5 px-4 text-center">Elapsed Since Last</th>
+                            <th class="py-2.5 px-4 text-right">Biometric Terminal</th>
+                            <th class="py-2.5 px-4 text-center w-24">Audit Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for p in card.punches %}
+                        <tr class="hover:bg-slate-50/50">
+                            <td class="py-2 px-4 text-center font-bold text-slate-500">
+                                <span class="w-5 h-5 rounded-full inline-flex items-center justify-center bg-slate-100 text-slate-700 text-[10px] font-bold">
+                                    {{ p.punch_num }}
+                                </span>
+                            </td>
+                            {% if is_multi_day %}
+                            <td class="py-2 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
+                                <i class="far fa-calendar text-blue-500 mr-1.5"></i>{{ p.punch_date }}
+                            </td>
+                            {% endif %}
+                            <td class="py-2 px-4 font-mono font-bold text-slate-800">
+                                {{ p.time }}
+                            </td>
+                            <td class="py-2 px-4 font-mono text-slate-600">
+                                {{ p.time_ampm }}
+                            </td>
+                            <td class="py-2 px-4">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold
+                                    {% if p.nature_color == 'emerald' %}bg-emerald-100 text-emerald-800
+                                    {% elif p.nature_color == 'indigo' %}bg-indigo-100 text-indigo-800
+                                    {% elif p.nature_color == 'amber' %}bg-amber-100 text-amber-800
+                                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                                    <i class="fas {{ p.icon }} text-[9px] mr-1"></i>
+                                    {{ p.nature }}
+                                </span>
+                            </td>
+                            <td class="py-2 px-4 text-center font-mono font-semibold text-slate-600">
+                                {% if p.interval %}
+                                <span class="text-blue-600 font-bold">{{ p.interval }}</span>
+                                {% else %}
+                                <span class="text-slate-300">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2 px-4 text-right font-mono text-[11px] text-slate-400">
+                                <i class="fas fa-network-wired text-[10px] mr-1 text-slate-300"></i>
+                                {{ p.device_id }}
+                            </td>
+                            <td class="py-2 px-4 text-center">
+                                <div class="flex items-center justify-center space-x-1">
+                                    <button type="button" 
+                                            onclick="openEditPunchModal('{{ p.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ p.raw_time }}', '{{ p.punch_type }}')"
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition shadow-2xs">
+                                        <i class="fas fa-pencil mr-1 text-[10px] text-amber-600"></i> Edit
+                                    </button>
+                                    <button type="button" 
+                                            onclick="openDeletePunchModal('{{ p.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ p.raw_time }}')"
+                                            class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition shadow-2xs"
+                                            title="Delete this punch with permanent audit trail">
+                                        <i class="fas fa-trash-can mr-1 text-[10px] text-rose-600"></i> Delete
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- FOOTER WITH QUICK ADD BUTTON (NO LIMIT) -->
+            <div class="p-3 bg-slate-50/70 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-xs text-slate-500 font-medium">
+                    <i class="fas fa-infinity text-blue-500 mr-1"></i> No limit: Add as many punches as needed for {{ card.employee.first_name }}
+                </span>
+                <button type="button" 
+                        onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', {{ card.punch_count }}, '{{ card.last_out or card.first_in or '' }}')"
+                        class="inline-flex items-center px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-xs font-bold transition">
+                    <i class="fas fa-plus mr-1.5 text-emerald-600"></i> Add Punch #{{ card.punch_count + 1 }}
+                </button>
+            </div>
+
+        </div>
+        {% else %}
+        <!-- EMPLOYEE WITH 0 PUNCHES YET: CARD WITH DIRECT ADD BUTTON -->
+        <div class="bg-white rounded-xl border border-dashed border-slate-300 shadow-xs overflow-hidden punch-card" 
+             data-search="{{ card.employee.emp_no }} {{ card.employee.first_name }} {{ card.employee.last_name }} {{ card.employee.dept_name }}"
+             data-has-punches="false"
+             data-status="{{ 'LEAVE' if card.employee.status in ('WEEKLY_OFF', 'HOLIDAY', 'ON_LEAVE', 'LEAVE') else 'ABSENT' }}">
+            
+            <div class="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div class="flex items-center space-x-3.5">
+                    <div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-600 font-bold text-sm flex items-center justify-center shadow-xs">
+                        {{ card.employee.first_name[:1] }}{{ card.employee.last_name[:1] if card.employee.last_name else '' }}
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <h3 class="font-bold text-sm text-slate-800">{{ card.employee.first_name }} {{ card.employee.last_name }}</h3>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-200 text-slate-700">{{ card.employee.emp_no }}</span>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">{{ card.employee.dept_name }}</span>
+                        </div>
+                        <p class="text-xs text-slate-500 mt-0.5">
+                            Scheduled Shift: <strong class="text-slate-700">{{ card.employee.shift_code }} ({{ card.employee.start_time }} - {{ card.employee.end_time }})</strong>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="inline-flex items-center px-3 py-1 rounded-lg font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+                        <i class="fas fa-minus mr-1.5 text-slate-400"></i>
+                        0 Punches in Period
+                    </span>
+                    <button type="button" 
+                            onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', 0, '')"
+                            class="inline-flex items-center px-3.5 py-1.5 rounded-lg font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer"
+                            title="Touch to add manual punch for this staff member">
+                        <i class="fas fa-plus mr-1.5"></i> Add Punch
+                    </button>
+                </div>
+            </div>
+
+            {% if card.pending_gaps and card.pending_gaps|length > 0 %}
+            <div class="p-3 bg-rose-50/80 border-b border-rose-200 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-triangle-exclamation text-rose-600 text-sm"></i>
+                    <span class="text-xs font-bold text-rose-900">Detected Missed Shift Timing:</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    {% for gap in card.pending_gaps %}
+                    <form action="{{ url_for('attendance.approve_missing_punch', alert_id=gap.id) }}" method="POST" class="inline m-0">
+                        <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-2xs cursor-pointer"
+                                title="1-Click Approve {{ gap.suggested_punch_type }} at {{ gap.expected_time[:5] }}">
+                            <i class="fas fa-check"></i> Approve Missed {{ gap.suggested_punch_type }} ({{ gap.expected_time[:5] }})
+                        </button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="p-4 text-center bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <span class="text-slate-500">
+                    No biometric punches registered for {{ card.employee.first_name }} {{ card.employee.last_name }} in {{ range_label }}.
+                </span>
+                <button type="button" 
+                        onclick="openManualPunchForEmp('{{ card.employee.id }}', '{{ card.employee.first_name }} {{ card.employee.last_name }}', '{{ card.employee.emp_no }}', '{{ card.employee.dept_name }}', 0, '')"
+                        class="inline-flex items-center px-3.5 py-1.5 rounded-lg font-bold text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 transition shadow-2xs">
+                    <i class="fas fa-plus mr-1.5 text-emerald-600"></i> Add First Punch (IN) for {{ card.employee.first_name }}
+                </button>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- VIEW 2: CHRONOLOGICAL STREAM (EVERY PUNCH ON TERMINAL)  -->
+    <!-- ======================================================== -->
+    <div id="viewStreamTable" class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden hidden">
+        <div class="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <h4 class="font-bold text-xs text-slate-800 uppercase tracking-wider">
+                <i class="fas fa-list-ol mr-1 text-blue-600"></i> All Biometric Punches in Chronological Order ({{ all_raw_punches|length }} Punches)
+            </h4>
+            <span class="text-xs text-slate-500 font-mono font-semibold">{{ range_label }}</span>
+        </div>
+        <div class="overflow-x-auto max-h-[70vh]">
+            <table class="w-full text-left text-xs">
+                <thead class="sticky top-0 bg-slate-100 text-slate-600 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                    <tr>
+                        <th class="py-3 px-4 w-12 text-center">#</th>
+                        <th class="py-3 px-4">Exact Punch Timestamp</th>
+                        <th class="py-3 px-4">Staff Member</th>
+                        <th class="py-3 px-4">Employee ID</th>
+                        <th class="py-3 px-4">Department</th>
+                        <th class="py-3 px-4">Punch Direction</th>
+                        <th class="py-3 px-4 text-right">Terminal Source</th>
+                        <th class="py-3 px-4 text-center w-24">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for p in all_raw_punches %}
+                    <tr class="hover:bg-blue-50/40 transition stream-row" 
+                        data-search="{{ p.emp_no }} {{ p.first_name }} {{ p.last_name }} {{ p.dept_name }} {{ p.punch_time }}">
+                        <td class="py-2.5 px-4 text-center font-mono text-slate-400 text-[11px]">
+                            {{ loop.index }}
+                        </td>
+                        <td class="py-2.5 px-4 font-mono font-bold text-slate-800 whitespace-nowrap">
+                            <i class="far fa-clock text-blue-500 mr-1.5"></i>{{ p.punch_time }}
+                        </td>
+                        <td class="py-2.5 px-4 font-bold text-slate-900">
+                            {{ p.first_name }} {{ p.last_name }}
+                        </td>
+                        <td class="py-2.5 px-4 font-mono text-slate-600">
+                            <span class="px-2 py-0.5 rounded bg-slate-100 font-bold text-[11px]">{{ p.emp_no }}</span>
+                        </td>
+                        <td class="py-2.5 px-4 text-slate-600">
+                            {{ p.dept_name }}
+                        </td>
+                        <td class="py-2.5 px-4">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <i class="fas fa-fingerprint text-[9px] mr-1 text-emerald-500"></i> Biometric Punch
+                            </span>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-mono text-slate-400 text-[11px]">
+                            {{ p.device_id or '192.168.101.201' }}
+                        </td>
+                        <td class="py-2.5 px-4 text-center">
+                            <div class="flex items-center justify-center space-x-1">
+                                <button type="button" 
+                                        onclick="openEditPunchModal('{{ p.id }}', '{{ p.first_name }} {{ p.last_name }}', '{{ p.emp_no }}', '{{ p.punch_time }}', '{{ p.punch_type }}')"
+                                        class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition shadow-2xs">
+                                    <i class="fas fa-pencil mr-1 text-[10px] text-amber-600"></i> Edit
+                                </button>
+                                <button type="button" 
+                                        onclick="openDeletePunchModal('{{ p.id }}', '{{ p.first_name }} {{ p.last_name }}', '{{ p.emp_no }}', '{{ p.punch_time }}')"
+                                        class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition shadow-2xs"
+                                        title="Delete this punch with permanent audit trail">
+                                    <i class="fas fa-trash-can mr-1 text-[10px] text-rose-600"></i> Delete
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-10 text-center text-slate-400 italic">
+                            No biometric punches recorded for {{ selected_date }}.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- MANUAL PUNCH ENTRY MODAL (TARGETED TO SPECIFIC PERSON) -->
+<div id="manualPunchModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-fingerprint"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm" id="manualPunchModalTitle">Manual Punch Entry</h3>
+                    <p class="text-[11px] text-slate-400" id="manualPunchModalSubtitle">No limit for this person • Immutable Audit Logged</p>
+                </div>
+            </div>
+            <button onclick="closeModal('manualPunchModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('attendance.manual_punch') }}" method="POST" class="p-5 space-y-4">
+            
+            <!-- TARGET PERSON FOCUS CARD (LOCKED TO PERSON WHEN OPENED VIA ADD BUTTON) -->
+            <div id="manualPunchTargetBanner" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center shadow-sm" id="manualPunchAvatar">
+                        --
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-extrabold text-slate-900 text-sm" id="manualPunchTargetName">Employee Name</span>
+                            <span class="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-blue-200 text-blue-900" id="manualPunchTargetEmpNo">EMP0000</span>
+                        </div>
+                        <span class="text-xs text-slate-600 block mt-0.5" id="manualPunchTargetDept">Department</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300" id="manualPunchNextNumBadge">
+                        New Punch #--
+                    </span>
+                    <span class="block text-[10px] text-slate-500 font-semibold mt-0.5">
+                        <i class="fas fa-infinity text-blue-500 mr-0.5"></i> No Limit
+                    </span>
+                </div>
+            </div>
+
+            <!-- HIDDEN LOCKED EMPLOYEE ID FOR STRICT TARGETING -->
+            <input type="hidden" name="employee_id" id="manualPunchEmpId" value="">
+
+            <!-- FALLBACK SELECTOR IF OPENED WITHOUT PRESELECTED PERSON -->
+            <div id="manualPunchSelectContainer" class="hidden">
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Select Staff Member</label>
+                <select id="manualPunchFallbackSelect" onchange="syncManualPunchTarget(this)" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                    {% for emp in active_employees %}
+                    <option value="{{ emp.id }}" data-name="{{ emp.first_name }} {{ emp.last_name }}" data-no="{{ emp.emp_no }}">{{ emp.emp_no }} - {{ emp.first_name }} {{ emp.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- PUNCH DIRECTION SELECTOR -->
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Punch Direction / Nature
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="punch_type" id="punchTypeIn" value="IN" checked class="peer sr-only">
+                        <div class="p-2.5 text-center rounded-xl border-2 border-slate-200 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 text-slate-600 peer-checked:text-emerald-800 transition font-bold text-xs flex items-center justify-center space-x-2 shadow-2xs">
+                            <i class="fas fa-sign-in-alt text-emerald-600 text-sm"></i>
+                            <span>Punch IN</span>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="punch_type" id="punchTypeOut" value="OUT" class="peer sr-only">
+                        <div class="p-2.5 text-center rounded-xl border-2 border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 text-slate-600 peer-checked:text-indigo-800 transition font-bold text-xs flex items-center justify-center space-x-2 shadow-2xs">
+                            <i class="fas fa-sign-out-alt text-indigo-600 text-sm"></i>
+                            <span>Punch OUT</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- DATE & EXACT TIME -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                    <input type="date" name="date" id="manualPunchDate" value="{{ selected_date }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-semibold">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-semibold text-slate-600">Time (HH:MM:SS)</label>
+                        <button type="button" onclick="setManualPunchTimeNow()" class="text-[10px] font-bold text-blue-600 hover:underline">Set Now</button>
+                    </div>
+                    <input type="time" step="1" name="time" id="manualPunchTime" value="09:00:00" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-semibold">
+                </div>
+            </div>
+
+            <!-- QUICK SHIFT TIME PRESETS -->
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Quick Factory Timing Presets:</span>
+                <div class="flex flex-wrap gap-1 text-[10px]">
+                    <button type="button" onclick="setManualTime('09:00:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200 font-mono">09:00 (In)</button>
+                    <button type="button" onclick="setManualTime('11:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 hover:text-amber-800 border border-slate-200 font-mono">11:00 (Tea Out)</button>
+                    <button type="button" onclick="setManualTime('11:15:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-800 border border-slate-200 font-mono">11:15 (Tea In)</button>
+                    <button type="button" onclick="setManualTime('13:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 hover:text-amber-800 border border-slate-200 font-mono">13:00 (Lunch Out)</button>
+                    <button type="button" onclick="setManualTime('14:00:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-800 border border-slate-200 font-mono">14:00 (Lunch In)</button>
+                    <button type="button" onclick="setManualTime('16:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 hover:text-amber-800 border border-slate-200 font-mono">16:00 (Break Out)</button>
+                    <button type="button" onclick="setManualTime('16:15:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-800 border border-slate-200 font-mono">16:15 (Break In)</button>
+                    <button type="button" onclick="setManualTime('18:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-800 border border-slate-200 font-mono">18:00 (Shift Out)</button>
+                    <button type="button" onclick="setManualTime('19:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-purple-50 hover:text-purple-800 border border-slate-200 font-mono">19:00 (OT 1 Out)</button>
+                    <button type="button" onclick="setManualTime('21:15:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-purple-50 hover:text-purple-800 border border-slate-200 font-mono">21:15 (OT 2 Out)</button>
+                </div>
+            </div>
+
+            <!-- MANDATORY AUDIT REASON WITH QUICK CHIPS -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Mandatory Reason / Justification <span class="text-rose-500">*</span>
+                </label>
+                <div class="flex flex-wrap gap-1 mb-1.5 text-[10px]">
+                    <button type="button" onclick="setManualReason('Missed biometric scan on terminal')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Missed scan</button>
+                    <button type="button" onclick="setManualReason('Fingerprint scan not recognized by device')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Fingerprint error</button>
+                    <button type="button" onclick="setManualReason('Working on packaging & printing press machine line')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Press duty</button>
+                    <button type="button" onclick="setManualReason('Authorized overtime duty continuation')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Authorized OT</button>
+                    <button type="button" onclick="setManualReason('Out for delivery / dispatch errand')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Delivery errand</button>
+                </div>
+                <textarea name="reason" id="manualPunchReason" rows="2" required placeholder="e.g., Missed punch on terminal, Gate duty, Finger scan failed"
+                          class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white"></textarea>
+                <p class="text-[10px] text-slate-400 mt-0.5">Required under statutory compliance. Recorded permanently in Punch Audit Log.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Authorized By</label>
+                <input type="text" name="edited_by" value="Supervisor / HR Manager" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <!-- MODAL ACTIONS -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 font-medium">
+                    <i class="fas fa-user-check text-emerald-500 mr-1"></i> Targeted to selected staff
+                </span>
+                <div class="flex items-center space-x-2">
+                    <button type="button" onclick="closeModal('manualPunchModal')" class="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Cancel
+                    </button>
+                    <button type="submit" id="manualPunchSubmitBtn" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm flex items-center space-x-1.5 transition">
+                        <i class="fas fa-check"></i>
+                        <span id="manualPunchSubmitLabel">Save Manual Punch</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- EDIT PUNCH MODAL -->
+<div id="editPunchModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-pen-to-square text-amber-400"></i>
+                <h3 class="font-bold text-sm">Edit Punch Timestamp & Type</h3>
+            </div>
+            <button onclick="closeModal('editPunchModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center space-x-2 text-xs text-amber-800">
+            <i class="fas fa-lock text-amber-600"></i>
+            <span><strong>Compliance Notice:</strong> Punches cannot be deleted. Any edit will be permanently recorded with the reason in the <a href="{{ url_for('attendance.audit_log') }}" class="underline font-bold" target="_blank">Audit Log</a>.</span>
+        </div>
+
+        <form id="editPunchForm" method="POST" class="p-5 space-y-4">
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-slate-500 font-semibold">Staff Member:</span>
+                    <span class="font-bold text-slate-800" id="editPunchStaffName">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 font-semibold">Employee ID:</span>
+                    <span class="font-mono font-bold text-blue-600" id="editPunchEmpNo">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 font-semibold">Current Stored Timestamp:</span>
+                    <span class="font-mono font-bold text-slate-700" id="editPunchCurrentTime">--</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    New Exact Timestamp (YYYY-MM-DD HH:MM:SS) <span class="text-rose-500">*</span>
+                </label>
+                <input type="text" name="new_time" id="editPunchNewTime" required 
+                       class="w-full text-xs font-mono font-bold rounded-lg border-slate-300 py-2 px-3 bg-white focus:border-blue-500">
+                <p class="text-[10px] text-slate-400 mt-1">Format: 24-hour timestamp (e.g. 2026-09-08 09:05:00)</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Punch Nature / Type</label>
+                <select name="punch_type" id="editPunchType" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-semibold">
+                    <option value="IN">IN (Clock IN)</option>
+                    <option value="OUT">OUT (Clock OUT)</option>
+                    <option value="PUNCH">PUNCH (Standard Biometric)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Mandatory Reason for Edit <span class="text-rose-500">*</span>
+                </label>
+                <textarea name="reason" rows="2" required placeholder="State exact reason for adjusting this punch (e.g. Machine time drift, Supervisor verified delay)..."
+                          class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Authorized By</label>
+                <input type="text" name="edited_by" value="Supervisor / HR Manager" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="triggerDeleteFromEditModal()" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center shadow-2xs">
+                    <i class="fas fa-trash-can mr-1.5 text-rose-600"></i> Delete Punch
+                </button>
+                <div class="flex space-x-2">
+                    <button type="button" onclick="closeModal('editPunchModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-xs font-bold text-white shadow-sm">
+                        <i class="fas fa-save mr-1"></i> Update & Log
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- DELETE PUNCH CONFIRMATION MODAL -->
+<div id="deletePunchModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-rose-600 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-trash-can"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Delete Attendance Punch</h3>
+                    <p class="text-[11px] text-rose-100">Permanent removal with mandatory audit logging</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('deletePunchModal')" class="text-white/80 hover:text-white text-lg">&times;</button>
+        </div>
+
+        <form id="deletePunchForm" method="POST" class="p-5 space-y-4">
+            <div class="bg-rose-50 border border-rose-200 p-3 rounded-xl text-xs space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-rose-700 font-semibold">Staff Member:</span>
+                    <span class="font-bold text-slate-800" id="deletePunchStaffName">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-rose-700 font-semibold">Employee ID:</span>
+                    <span class="font-mono font-bold text-slate-800" id="deletePunchEmpNo">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-rose-700 font-semibold">Punch Timestamp:</span>
+                    <span class="font-mono font-bold text-rose-800" id="deletePunchTime">--</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                    Mandatory Reason for Deletion <span class="text-rose-500">*</span>
+                </label>
+                <textarea name="reason" id="deletePunchReason" rows="2" required 
+                          placeholder="State justification reason (e.g. Accidental double scan, Ghost scan, Left without permission)..."
+                          class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white focus:border-rose-500"></textarea>
+                
+                <!-- Quick Reason Presets -->
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                    <button type="button" onclick="setDeleteReason('Accidental duplicate swipe')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Accidental double swipe</button>
+                    <button type="button" onclick="setDeleteReason('Ghost scan / terminal drift')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Ghost scan</button>
+                    <button type="button" onclick="setDeleteReason('Wrong employee card scanned')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Wrong staff card</button>
+                    <button type="button" onclick="setDeleteReason('Unauthorized checkout')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Unauthorized checkout</button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Authorized Supervisor / Manager <span class="text-rose-500">*</span></label>
+                <input type="text" name="edited_by" value="Supervisor / HR Manager" required 
+                       class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="closeModal('deletePunchModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white shadow-sm flex items-center">
+                    <i class="fas fa-trash-can mr-1.5"></i> Confirm Delete & Log
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentCardFilter = 'ALL';
+
+function filterCardStatus(status) {
+    currentCardFilter = status;
+    
+    // Update active tab styles
+    document.querySelectorAll('.card-filter-tab').forEach(tab => {
+        tab.className = 'card-filter-tab px-3 py-1.5 rounded-lg font-semibold bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs transition';
+    });
+    
+    if (status === 'ALL') {
+        const tab = document.getElementById('tabCardAll');
+        if (tab) tab.className = 'card-filter-tab active px-3 py-1.5 rounded-lg font-bold bg-blue-600 text-white shadow-sm transition';
+    } else if (status === 'PRESENT' || status === 'WITH_PUNCHES') {
+        const tab = document.getElementById('tabCardPresent') || document.getElementById('tabCardWith');
+        if (tab) tab.className = 'card-filter-tab active px-3 py-1.5 rounded-lg font-bold bg-emerald-600 text-white shadow-sm transition';
+    } else if (status === 'LEAVE') {
+        const tab = document.getElementById('tabCardLeave');
+        if (tab) tab.className = 'card-filter-tab active px-3 py-1.5 rounded-lg font-bold bg-indigo-600 text-white shadow-sm transition';
+    } else if (status === 'ABSENT' || status === 'NO_PUNCHES') {
+        const tab = document.getElementById('tabCardAbsent') || document.getElementById('tabCardWithout');
+        if (tab) tab.className = 'card-filter-tab active px-3 py-1.5 rounded-lg font-bold bg-rose-600 text-white shadow-sm transition';
+    }
+    
+    filterPunches();
+}
+
+function switchView(mode) {
+    const cardView = document.getElementById('viewPersonCards');
+    const filterTabs = document.getElementById('personCardFilterTabs');
+    const streamView = document.getElementById('viewStreamTable');
+    const btnPerson = document.getElementById('btnViewPerson');
+    const btnStream = document.getElementById('btnViewStream');
+
+    if (mode === 'PERSON') {
+        cardView.classList.remove('hidden');
+        if (filterTabs) filterTabs.classList.remove('hidden');
+        streamView.classList.add('hidden');
+        btnPerson.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition bg-blue-600 text-white shadow-sm flex items-center';
+        btnStream.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition flex items-center';
+    } else {
+        cardView.classList.add('hidden');
+        if (filterTabs) filterTabs.classList.add('hidden');
+        streamView.classList.remove('hidden');
+        btnPerson.className = 'px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition flex items-center';
+        btnStream.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition bg-blue-600 text-white shadow-sm flex items-center';
+    }
+}
+
+function filterPunches() {
+    const q = (document.getElementById('punchSearch').value || '').toLowerCase();
+    
+    // Filter Person Cards
+    document.querySelectorAll('.punch-card').forEach(card => {
+        const text = (card.getAttribute('data-search') || '').toLowerCase();
+        const hasPunches = card.getAttribute('data-has-punches') === 'true';
+        const status = card.getAttribute('data-status') || '';
+        
+        let matchesSearch = text.includes(q);
+        let matchesFilter = true;
+        
+        if (currentCardFilter === 'PRESENT' || currentCardFilter === 'WITH_PUNCHES') {
+            matchesFilter = hasPunches || status === 'PRESENT';
+        } else if (currentCardFilter === 'LEAVE') {
+            matchesFilter = (status === 'LEAVE' || status === 'WEEKLY_OFF');
+        } else if (currentCardFilter === 'ABSENT' || currentCardFilter === 'NO_PUNCHES') {
+            matchesFilter = (!hasPunches && status !== 'LEAVE' && status !== 'WEEKLY_OFF');
+        }
+        
+        card.style.display = (matchesSearch && matchesFilter) ? '' : 'none';
+    });
+
+    // Filter Stream Rows
+    document.querySelectorAll('.stream-row').forEach(row => {
+        const text = (row.getAttribute('data-search') || '').toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+function openManualPunchForEmp(empId, empName, empNo, deptName, punchCount, lastPunchTime, punchDate, prefillTime, prefillType, punchReason) {
+    document.getElementById('manualPunchEmpId').value = empId;
+    
+    if (punchDate) {
+        const dateInput = document.getElementById('manualPunchDate');
+        if (dateInput) {
+            dateInput.value = punchDate;
+        }
+    }
+    
+    if (empName) {
+        document.getElementById('manualPunchTargetName').innerText = empName;
+        document.getElementById('manualPunchTargetEmpNo').innerText = empNo || '';
+        document.getElementById('manualPunchTargetDept').innerText = (deptName || 'Staff Member') + (punchDate ? ' • Target Date: ' + punchDate : (lastPunchTime ? ' • Last Punch: ' + lastPunchTime : ''));
+        
+        const initials = empName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        document.getElementById('manualPunchAvatar').innerText = initials || 'EM';
+        
+        const count = parseInt(punchCount) || 0;
+        const nextNum = count + 1;
+        document.getElementById('manualPunchNextNumBadge').innerText = (punchDate ? punchDate + ' ' : '') + 'Punch #' + nextNum;
+        document.getElementById('manualPunchSubmitLabel').innerText = 'Save Punch for ' + empName.split(' ')[0];
+        document.getElementById('manualPunchModalTitle').innerText = 'Add Punch: ' + empName + (punchDate ? ' (' + punchDate + ')' : '');
+        document.getElementById('manualPunchModalSubtitle').innerText = 'Recording attendance punch for ' + (punchDate || 'selected date') + ' (No Limit)';
+        
+        if (prefillType === 'IN') {
+            document.getElementById('punchTypeIn').checked = true;
+        } else if (prefillType === 'OUT') {
+            document.getElementById('punchTypeOut').checked = true;
+        } else {
+            if (count === 0) {
+                document.getElementById('punchTypeIn').checked = true;
+            } else if (count % 2 === 1) {
+                document.getElementById('punchTypeOut').checked = true;
+            } else {
+                document.getElementById('punchTypeIn').checked = true;
+            }
+        }
+        
+        document.getElementById('manualPunchTargetBanner').classList.remove('hidden');
+        document.getElementById('manualPunchSelectContainer').classList.add('hidden');
+    } else {
+        // Fallback if opened from top general bar
+        const sel = document.getElementById('manualPunchFallbackSelect');
+        document.getElementById('manualPunchTargetBanner').classList.add('hidden');
+        document.getElementById('manualPunchSelectContainer').classList.remove('hidden');
+        document.getElementById('manualPunchModalTitle').innerText = 'Manual Punch Entry';
+        document.getElementById('manualPunchModalSubtitle').innerText = 'Select a staff member to record punch entry (No Limit)';
+        document.getElementById('manualPunchSubmitLabel').innerText = 'Save Manual Punch';
+        if (sel) {
+            document.getElementById('manualPunchEmpId').value = sel.value;
+        }
+    }
+    
+    if (prefillTime) {
+        document.getElementById('manualPunchTime').value = prefillTime;
+    } else {
+        setManualPunchTimeNow();
+    }
+
+    if (punchReason) {
+        document.getElementById('manualPunchReason').value = punchReason;
+    } else {
+        document.getElementById('manualPunchReason').value = 'Manual attendance punch entry';
+    }
+    
+    openModal('manualPunchModal');
+}
+
+function syncManualPunchTarget(selectElem) {
+    document.getElementById('manualPunchEmpId').value = selectElem.value;
+}
+
+function setManualPunchTimeNow() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    document.getElementById('manualPunchTime').value = `${h}:${m}:${s}`;
+}
+
+function setManualTime(timeStr, punchType) {
+    document.getElementById('manualPunchTime').value = timeStr;
+    if (punchType === 'IN') {
+        document.getElementById('punchTypeIn').checked = true;
+    } else if (punchType === 'OUT') {
+        document.getElementById('punchTypeOut').checked = true;
+    }
+}
+
+function setManualReason(reasonStr) {
+    document.getElementById('manualPunchReason').value = reasonStr;
+}
+
+let currentEditPunchId = null;
+let currentEditStaffName = '';
+let currentEditEmpNo = '';
+let currentEditPunchTime = '';
+
+function openEditPunchModal(punchId, staffName, empNo, currTime, currType) {
+    currentEditPunchId = punchId;
+    currentEditStaffName = staffName;
+    currentEditEmpNo = empNo;
+    currentEditPunchTime = currTime;
+
+    document.getElementById('editPunchStaffName').innerText = staffName;
+    document.getElementById('editPunchEmpNo').innerText = empNo;
+    document.getElementById('editPunchCurrentTime').innerText = currTime;
+    document.getElementById('editPunchNewTime').value = currTime;
+    
+    const typeSelect = document.getElementById('editPunchType');
+    if (typeSelect) {
+        typeSelect.value = currType || 'PUNCH';
+    }
+    
+    const form = document.getElementById('editPunchForm');
+    form.action = '/attendance/edit-punch/' + punchId;
+    
+    openModal('editPunchModal');
+}
+
+function triggerDeleteFromEditModal() {
+    closeModal('editPunchModal');
+    openDeletePunchModal(currentEditPunchId, currentEditStaffName, currentEditEmpNo, currentEditPunchTime);
+}
+
+function openDeletePunchModal(punchId, staffName, empNo, punchTime) {
+    document.getElementById('deletePunchStaffName').innerText = staffName;
+    document.getElementById('deletePunchEmpNo').innerText = empNo;
+    document.getElementById('deletePunchTime').innerText = punchTime;
+    document.getElementById('deletePunchReason').value = '';
+    
+    const form = document.getElementById('deletePunchForm');
+    form.action = '/attendance/delete-punch/' + punchId;
+    
+    openModal('deletePunchModal');
+}
+
+function setDeleteReason(reason) {
+    document.getElementById('deletePunchReason').value = reason;
+}
+</script>
+{% endblock %}

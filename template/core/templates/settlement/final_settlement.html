@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Full & Final Settlement | {{ company_info.company_name }}{% endblock %}
+{% block header_title %}Full & Final Settlement (Gratuity Act 1972 & Factory Rules){% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- BREADCRUMB & HEADER -->
+    <div class="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div class="flex items-center space-x-3">
+            <a href="{{ url_for('settlement.index') }}" class="p-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <h2 class="text-sm font-bold text-slate-800">Full & Final Settlement Portal</h2>
+                <p class="text-xs text-slate-500">Statutory Gratuity (15/26 days per completed year for &ge; 5 yrs tenure) + Leave Encashment + Wage Arrears</p>
+            </div>
+        </div>
+        <button onclick="openModal('newSettlementModal')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center">
+            <i class="fas fa-plus mr-1.5"></i> Compute New Settlement
+        </button>
+    </div>
+
+    <!-- SETTLEMENTS LEDGER -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <h3 class="text-sm font-bold text-slate-800">Settled Vouchers History</h3>
+            <span class="text-xs text-slate-500">{{ settlements|length }} Total vouchers issued</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs text-left">
+                <thead class="bg-slate-50 text-slate-500 uppercase font-semibold border-b border-slate-200">
+                    <tr>
+                        <th class="py-2.5 px-3">Date</th>
+                        <th class="py-2.5 px-3">Emp Code</th>
+                        <th class="py-2.5 px-3">Employee Name</th>
+                        <th class="py-2.5 px-3">Tenure</th>
+                        <th class="py-2.5 px-3 text-right">Gratuity</th>
+                        <th class="py-2.5 px-3 text-right">Leave Encash</th>
+                        <th class="py-2.5 px-3 text-right">Unpaid Wages</th>
+                        <th class="py-2.5 px-3 text-right">Advance Cut</th>
+                        <th class="py-2.5 px-3 text-right">Net Settlement</th>
+                        <th class="py-2.5 px-3 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-sans">
+                    {% for s in settlements %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-2.5 px-3 font-mono font-medium">{{ s.settlement_date }}</td>
+                        <td class="py-2.5 px-3 font-mono font-bold text-blue-700">{{ s.emp_no }}</td>
+                        <td class="py-2.5 px-3 font-bold text-slate-800">
+                            {{ s.first_name }} {{ s.last_name }}
+                            <span class="block text-[10px] font-normal text-slate-400">{{ s.designation }}</span>
+                        </td>
+                        <td class="py-2.5 px-3 font-mono">{{ "%.1f"|format(s.service_years) }} yrs</td>
+                        <td class="py-2.5 px-3 text-right font-mono">{{ company_info.currency_symbol }}{{ "%.2f"|format(s.gratuity_amount) }}</td>
+                        <td class="py-2.5 px-3 text-right font-mono">{{ company_info.currency_symbol }}{{ "%.2f"|format(s.leave_encashment_amount) }}</td>
+                        <td class="py-2.5 px-3 text-right font-mono">{{ company_info.currency_symbol }}{{ "%.2f"|format(s.unpaid_wages) }}</td>
+                        <td class="py-2.5 px-3 text-right font-mono text-rose-600">-{{ company_info.currency_symbol }}{{ "%.2f"|format(s.advance_recovery) }}</td>
+                        <td class="py-2.5 px-3 text-right font-mono font-black text-emerald-700 text-sm">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(s.net_settlement_amount) }}
+                        </td>
+                        <td class="py-2.5 px-3 text-center">
+                            <a href="{{ url_for('settlement.view_settlement_slip', record_id=s.id) }}" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs inline-flex items-center">
+                                <i class="fas fa-file-invoice mr-1 text-blue-600"></i> Slip
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center py-8 text-slate-400 italic">
+                            No full & final settlements recorded yet. Click "Compute New Settlement" to process an employee clearance.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- COMPUTE NEW SETTLEMENT MODAL -->
+<div id="newSettlementModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                    <i class="fas fa-calculator"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Compute Full & Final Settlement</h3>
+                    <p class="text-[11px] text-slate-400">Payment of Gratuity Act 1972 & Factory Rules Compliance</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('newSettlementModal')" class="text-slate-400 hover:text-slate-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form method="POST" class="mt-4 space-y-4" id="settlementForm">
+            <!-- Employee Select -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Select Employee *</label>
+                <select name="employee_id" id="settleEmpSelect" required onchange="onEmployeeSelected()" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 font-bold">
+                    <option value="">-- Choose Employee --</option>
+                    {% for emp in active_employees %}
+                    <option value="{{ emp.id }}" 
+                            data-joindate="{{ emp.join_date }}"
+                            data-wage="{{ emp.shift_salary if emp.shift_salary > 0 else (emp.base_salary / 26.0) }}"
+                            data-monthly="{{ emp.base_salary }}">
+                        {{ emp.emp_no }} - {{ emp.first_name }} {{ emp.last_name }} ({{ emp.designation }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Settlement Date *</label>
+                    <input type="date" name="settlement_date" id="settleDate" value="{{ today_date }}" onchange="recalculateSettlement()" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Service Years (Tenure)</label>
+                    <input type="number" step="0.1" name="service_years" id="serviceYears" value="5.0" oninput="recalculateSettlement()" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Daily Wage / Shift Rate (₹)</label>
+                    <input type="number" step="0.01" name="last_drawn_wage" id="lastDrawnWage" value="500.00" oninput="recalculateSettlement()" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold">
+                </div>
+            </div>
+
+            <!-- STATUTORY BREAKDOWN -->
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-700">Settlement Components</h4>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">
+                            Gratuity Amount (₹)
+                            <span class="text-[10px] text-blue-600 font-normal">(15 &times; Daily Wage &times; Years if &ge; 5 yrs)</span>
+                        </label>
+                        <input type="number" step="0.01" name="gratuity_amount" id="gratuityAmount" value="0.00" oninput="recalcNet()" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-blue-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Leave Encashment (Days & Amount)</label>
+                        <div class="flex space-x-2">
+                            <input type="number" step="1" name="leave_encashment_days" id="leaveDays" placeholder="Days (e.g. 15)" value="0" oninput="recalcLeave()" class="w-1/3 text-xs rounded-lg border-slate-300 py-2 px-2 font-mono">
+                            <input type="number" step="0.01" name="leave_encashment_amount" id="leaveAmount" value="0.00" oninput="recalcNet()" class="w-2/3 text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-emerald-700">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Pending / Unpaid Wages (₹)</label>
+                        <input type="number" step="0.01" name="unpaid_wages" id="unpaidWages" value="0.00" oninput="recalcNet()" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Outstanding Advance Recovery (₹)</label>
+                        <input type="number" step="0.01" name="advance_recovery" id="advanceRecovery" value="0.00" oninput="recalcNet()" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-rose-600">
+                    </div>
+                </div>
+            </div>
+
+            <!-- NET SETTLEMENT AMOUNT HIGHLIGHT -->
+            <div class="p-3 bg-slate-900 text-white rounded-xl flex items-center justify-between">
+                <div>
+                    <span class="text-xs uppercase font-bold text-slate-400">Total Net Payable Settlement</span>
+                    <p class="text-[10px] text-slate-300">Final disbursement voucher</p>
+                </div>
+                <div class="text-xl font-black font-mono text-emerald-400" id="netSettlementDisplay">
+                    {{ company_info.currency_symbol }}0.00
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Approving Authority</label>
+                    <input type="text" name="approved_by" value="Factory Manager" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Payment Reference</label>
+                    <input type="text" name="payout_reference" placeholder="NEFT / Cheque #12345" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Remarks / Departure Reason</label>
+                <input type="text" name="remarks" placeholder="Superannuation / Resignation clearance" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="flex items-center space-x-2 pt-2">
+                <input type="checkbox" name="deactivate_employee" value="1" id="deactCheck" checked class="rounded border-slate-300 text-blue-600">
+                <label for="deactCheck" class="text-xs font-medium text-slate-700">Mark employee as Inactive / Relieved upon settlement</label>
+            </div>
+
+            <div class="pt-4 border-t border-slate-200 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('newSettlementModal')" class="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Finalize & Print Settlement Voucher
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onEmployeeSelected() {
+    const sel = document.getElementById('settleEmpSelect');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.value) return;
+
+    const joinDateStr = opt.getAttribute('data-joindate');
+    const dailyWage = parseFloat(opt.getAttribute('data-wage') || 500);
+
+    document.getElementById('lastDrawnWage').value = dailyWage.toFixed(2);
+
+    if (joinDateStr) {
+        const jDate = new Date(joinDateStr);
+        const sDate = new Date(document.getElementById('settleDate').value || new Date());
+        const diffMs = sDate - jDate;
+        const years = Math.max(0, diffMs / (1000 * 60 * 60 * 24 * 365.25));
+        document.getElementById('serviceYears').value = years.toFixed(1);
+    }
+    recalculateSettlement();
+}
+
+function recalculateSettlement() {
+    const years = parseFloat(document.getElementById('serviceYears').value || 0);
+    const wage = parseFloat(document.getElementById('lastDrawnWage').value || 0);
+
+    // Payment of Gratuity Act 1972: 15 days wages per completed year of service if service >= 5 years
+    let gratuity = 0;
+    if (years >= 5.0) {
+        gratuity = Math.round(15.0 * wage * years);
+    }
+    document.getElementById('gratuityAmount').value = gratuity.toFixed(2);
+    recalcLeave();
+}
+
+function recalcLeave() {
+    const days = parseFloat(document.getElementById('leaveDays').value || 0);
+    const wage = parseFloat(document.getElementById('lastDrawnWage').value || 0);
+    const amt = days * wage;
+    document.getElementById('leaveAmount').value = amt.toFixed(2);
+    recalcNet();
+}
+
+function recalcNet() {
+    const gratuity = parseFloat(document.getElementById('gratuityAmount').value || 0);
+    const leave = parseFloat(document.getElementById('leaveAmount').value || 0);
+    const unpaid = parseFloat(document.getElementById('unpaidWages').value || 0);
+    const advance = parseFloat(document.getElementById('advanceRecovery').value || 0);
+
+    const net = Math.max(0, gratuity + leave + unpaid - advance);
+    document.getElementById('netSettlementDisplay').innerText = '₹' + net.toFixed(2);
+}
+</script>
+{% endblock %}

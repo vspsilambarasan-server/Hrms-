@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Form C - Bonus Register (Year {{ year }}) | {{ company.company_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            @page { size: A4 landscape; margin: 10mm; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 p-6 text-slate-900 font-sans">
+    <div class="max-w-6xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200 print:shadow-none print:border-none">
+        
+        <!-- TOOLBAR -->
+        <div class="no-print flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+            <div>
+                <h3 class="text-sm font-bold text-slate-800">Printable Statutory Register • Form C</h3>
+                <p class="text-xs text-slate-500">The Payment of Bonus Rules, 1965 (Rule 4(c))</p>
+            </div>
+            <button onclick="window.print()" class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow hover:bg-blue-700">
+                Print / Save PDF
+            </button>
+        </div>
+
+        <!-- HEADER -->
+        <div class="text-center border-b-2 border-slate-900 pb-4 mb-4">
+            <h1 class="text-xl font-black uppercase tracking-wide text-slate-900">{{ company.company_name }}</h1>
+            <p class="text-xs text-slate-600">{{ company.address }}</p>
+            <p class="text-[11px] text-slate-500 font-mono">Factory License: {{ company.factory_license_no or 'REG-TN-2026' }} • GSTIN: {{ company.gstin or '33AAAAA0000A1Z5' }}</p>
+            <div class="mt-2">
+                <span class="px-3 py-1 bg-slate-100 border border-slate-400 font-bold uppercase text-xs tracking-wider">
+                    FORM C • BONUS PAID TO EMPLOYEES FOR THE ACCOUNTING YEAR {{ year }}
+                </span>
+            </div>
+        </div>
+
+        <!-- REGISTER TABLE -->
+        <table class="w-full text-xs text-left border-collapse border border-slate-300">
+            <thead class="bg-slate-100 text-slate-700 uppercase font-bold text-[10px]">
+                <tr class="border-b border-slate-300">
+                    <th class="p-2 border border-slate-300 text-center">Sl.</th>
+                    <th class="p-2 border border-slate-300">Emp Code</th>
+                    <th class="p-2 border border-slate-300">Employee Name</th>
+                    <th class="p-2 border border-slate-300">Designation</th>
+                    <th class="p-2 border border-slate-300 text-right">Earned Wages (₹)</th>
+                    <th class="p-2 border border-slate-300 text-center">Bonus %</th>
+                    <th class="p-2 border border-slate-300 text-right">Bonus Amount (₹)</th>
+                    <th class="p-2 border border-slate-300 text-center">Disbursement Date</th>
+                    <th class="p-2 border border-slate-300 text-center">Signature / Thumb Impression</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+                {% for r in records %}
+                <tr>
+                    <td class="p-2 border border-slate-300 text-center font-mono">{{ loop.index }}</td>
+                    <td class="p-2 border border-slate-300 font-mono font-bold">{{ r.emp_no }}</td>
+                    <td class="p-2 border border-slate-300 font-bold">{{ r.first_name }} {{ r.last_name }}</td>
+                    <td class="p-2 border border-slate-300">{{ r.designation }}</td>
+                    <td class="p-2 border border-slate-300 text-right font-mono">{{ "%.2f"|format(r.annual_earned_wages) }}</td>
+                    <td class="p-2 border border-slate-300 text-center font-mono font-bold">{{ "%.2f"|format(r.bonus_percentage) }}%</td>
+                    <td class="p-2 border border-slate-300 text-right font-mono font-bold">{{ "%.2f"|format(r.bonus_amount) }}</td>
+                    <td class="p-2 border border-slate-300 text-center font-mono text-[10px]">{{ r.payout_date or 'PENDING' }}</td>
+                    <td class="p-2 border border-slate-300 text-center h-10 w-44"></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-slate-100 font-bold border-t-2 border-slate-400">
+                <tr>
+                    <td colspan="4" class="p-2 border border-slate-300 uppercase text-right">Total Pool Disbursed:</td>
+                    <td class="p-2 border border-slate-300 text-right font-mono">₹{{ "%.2f"|format(total_wages) }}</td>
+                    <td class="p-2 border border-slate-300"></td>
+                    <td class="p-2 border border-slate-300 text-right font-mono font-bold text-sm">₹{{ "%.2f"|format(total_bonus) }}</td>
+                    <td colspan="2" class="p-2 border border-slate-300"></td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <!-- SIGNATURE BLOCK -->
+        <div class="pt-12 mt-8 flex justify-between text-xs text-slate-700">
+            <div class="text-center w-52">
+                <div class="border-b border-slate-400 mb-1"></div>
+                <p class="font-bold">Prepared By</p>
+                <p class="text-[10px] text-slate-500">Accounts & HR Assistant</p>
+            </div>
+            <div class="text-center w-52">
+                <div class="border-b border-slate-400 mb-1"></div>
+                <p class="font-bold">{{ company.supervisor_name or 'Factory Manager / Employer' }}</p>
+                <p class="text-[10px] text-slate-500">Authorized Signatory • {{ company.company_name }}</p>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

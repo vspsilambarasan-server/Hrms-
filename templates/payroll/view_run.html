@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll Register - {{ payroll_run.period_name }} | {{ company_info.company_name or 'Vasantham Printers' }}{% endblock %}
+{% block header_title %}Payroll Register: {{ payroll_run.period_name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- RUN SUMMARY HEADER -->
+    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center space-x-3">
+                <h3 class="text-xl font-extrabold text-slate-800">{{ payroll_run.period_name }}</h3>
+                {% if payroll_run.run_type == 'WEEKLY' %}
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                    <i class="fas fa-calendar-week mr-1 text-[10px]"></i> WEEKLY BATCH
+                </span>
+                {% else %}
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    <i class="fas fa-calendar-days mr-1 text-[10px]"></i> MONTHLY BATCH
+                </span>
+                {% endif %}
+
+                {% if payroll_run.status == 'FINALIZED' %}
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-900 text-white flex items-center">
+                    <i class="fas fa-lock mr-1 text-[10px]"></i> FINALIZED & LOCKED
+                </span>
+                {% else %}
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center">
+                    <i class="fas fa-pen mr-1 text-[10px]"></i> DRAFT (Modifiable)
+                </span>
+                {% endif %}
+            </div>
+            <p class="text-xs text-slate-500 mt-1">
+                Period: <span class="font-mono font-semibold text-slate-700">{{ payroll_run.start_date }} to {{ payroll_run.end_date }}</span> • 
+                Covering <strong class="text-slate-800">{{ payroll_run.total_employees }}</strong> staff members
+            </p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <a href="{{ url_for('payroll.export_csv', run_id=payroll_run.id) }}" class="inline-flex items-center px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition">
+                <i class="fas fa-file-csv mr-1.5 text-emerald-600"></i> Export CSV
+            </a>
+
+            <a href="{{ url_for('payroll.print_all_payslips', run_id=payroll_run.id) }}" target="_blank" class="inline-flex items-center px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                <i class="fas fa-print mr-1.5"></i> Print All Payslips
+            </a>
+
+            {% if payroll_run.status == 'DRAFT' %}
+            <form action="{{ url_for('payroll.finalize_run', run_id=payroll_run.id) }}" method="POST" onsubmit="return confirm('Finalizing will lock this payroll register and apply advance deductions to employee loan balances. Proceed?');">
+                <button type="submit" class="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                    <i class="fas fa-lock mr-1.5"></i> Finalize Payroll
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- METRICS CARDS -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Gross</span>
+            <span class="text-lg font-black text-slate-800 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(payroll_run.total_gross) }}
+            </span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Net Disbursed</span>
+            <span class="text-lg font-black text-emerald-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(payroll_run.total_net) }}
+            </span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Overtime Pay</span>
+            <span class="text-lg font-black text-indigo-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(payroll_run.total_ot_pay) }}
+            </span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Shift Premiums</span>
+            <span class="text-lg font-black text-blue-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(payroll_run.total_shift_allowance) }}
+            </span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Total Bonus</span>
+            <span class="text-lg font-black text-amber-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(payroll_run.total_bonus) }}
+            </span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Advance Cuts</span>
+            <span class="text-lg font-black text-rose-700 mt-1 block">
+                -{{ company_info.currency_symbol }}{{ "%.2f"|format(payroll_run.total_advance_deductions) }}
+            </span>
+        </div>
+    </div>
+
+    <!-- PAYSLIPS REGISTER TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+            <div>
+                <h4 class="font-bold text-sm text-slate-800">Staff Payslip Ledger</h4>
+                <p class="text-xs text-slate-500">Includes shift attendance, OT hours, bonuses, and weekly advance deductions.</p>
+            </div>
+            <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded">{{ payslips|length }} records</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Staff Member</th>
+                        <th class="py-3 px-2 text-center">Days</th>
+                        <th class="py-3 px-2 text-center">Nights</th>
+                        <th class="py-3 px-2 text-center">OT Hrs</th>
+                        <th class="py-3 px-3 text-right">OT Pay</th>
+                        <th class="py-3 px-3 text-right">Bonus (+)</th>
+                        <th class="py-3 px-3 text-right">Gross</th>
+                        <th class="py-3 px-3 text-right">Advance Cut (-)</th>
+                        <th class="py-3 px-3 text-right">Net Payable</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for p in payslips %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3 px-4">
+                            <div class="flex items-center space-x-2">
+                                <div>
+                                    <span class="font-bold text-slate-800 block text-xs">{{ p.first_name }} {{ p.last_name }}</span>
+                                    <span class="text-[10px] font-mono text-slate-400">{{ p.emp_no }} • {{ p.dept_name }}</span>
+                                </div>
+                                {% if p.pay_frequency == 'WEEKLY' %}
+                                <span class="px-1.5 py-0.5 rounded text-[8px] font-bold bg-purple-50 text-purple-700 border border-purple-200">WK</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="py-3 px-2 text-center font-mono font-semibold text-slate-700">
+                            {{ p.days_worked }}d
+                        </td>
+                        <td class="py-3 px-2 text-center font-mono font-bold text-purple-700">
+                            {{ p.night_shifts_count }}
+                        </td>
+                        <td class="py-3 px-2 text-center font-mono font-bold text-indigo-700">
+                            {{ p.approved_ot_hours }}h
+                        </td>
+                        <td class="py-3 px-3 text-right font-mono font-bold text-indigo-600">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(p.ot_pay) }}
+                        </td>
+                        <td class="py-3 px-3 text-right font-mono font-semibold text-amber-600">
+                            {% if p.bonus > 0 %}
+                            +{{ company_info.currency_symbol }}{{ "%.2f"|format(p.bonus) }}
+                            {% else %}
+                            <span class="text-slate-300">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-3 text-right font-mono font-semibold text-slate-800">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(p.gross_earnings) }}
+                        </td>
+                        <td class="py-3 px-3 text-right font-mono font-bold text-rose-600">
+                            {% if p.advance_deduction > 0 %}
+                            -{{ company_info.currency_symbol }}{{ "%.2f"|format(p.advance_deduction) }}
+                            {% else %}
+                            <span class="text-slate-300">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3 px-3 text-right font-mono font-extrabold text-slate-900 text-sm">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(p.net_pay) }}
+                        </td>
+                        <td class="py-3 px-4 text-right space-x-1 whitespace-nowrap">
+                            {% if payroll_run.status == 'DRAFT' %}
+                            <button onclick="openAdjustSlipModal({{ p.id }}, '{{ p.first_name }} {{ p.last_name }}', {{ p.bonus }}, {{ p.advance_deduction }})" class="p-1 text-slate-400 hover:text-blue-600 transition" title="Adjust Bonus or Advance Cut">
+                                <i class="fas fa-edit text-xs"></i>
+                            </button>
+                            {% endif %}
+                            <a href="{{ url_for('payroll.view_payslip', payslip_id=p.id) }}" class="inline-flex items-center px-2 py-1 rounded bg-slate-100 text-slate-700 hover:bg-slate-200 font-semibold text-xs transition" title="View Payslip">
+                                <i class="fas fa-eye mr-1 text-[10px]"></i> View
+                            </a>
+                            <a href="{{ url_for('payroll.view_payslip', payslip_id=p.id) }}?print=1" target="_blank" class="inline-flex items-center px-2.5 py-1 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition" title="Print Payslip">
+                                <i class="fas fa-print mr-1 text-[10px]"></i> Print
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ADJUST DRAFT PAYSLIP MODAL -->
+<div id="adjustSlipModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Adjust Bonus & Advance Cut</h3>
+            <button onclick="closeModal('adjustSlipModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form id="adjustSlipForm" method="POST" class="p-5 space-y-4">
+            <div>
+                <span class="text-xs text-slate-500 block">Employee:</span>
+                <span id="adjustEmpName" class="font-bold text-sm text-slate-800"></span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Bonus / Incentive ({{ company_info.currency_symbol }})</label>
+                <input type="number" step="0.01" name="bonus" id="adjustBonusInput" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-amber-700">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Weekly Advance Cut ({{ company_info.currency_symbol }})</label>
+                <input type="number" step="0.01" name="advance_deduction" id="adjustAdvanceInput" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-rose-700">
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('adjustSlipModal')" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openAdjustSlipModal(slipId, empName, bonus, advance) {
+    document.getElementById('adjustEmpName').innerText = empName;
+    document.getElementById('adjustBonusInput').value = bonus.toFixed(2);
+    document.getElementById('adjustAdvanceInput').value = advance.toFixed(2);
+    document.getElementById('adjustSlipForm').action = '/payroll/payslip/' + slipId + '/adjust';
+    openModal('adjustSlipModal');
+}
+</script>
+{% endblock %}

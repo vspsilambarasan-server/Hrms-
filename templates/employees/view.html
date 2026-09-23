@@ -1,0 +1,695 @@
+{% extends "base.html" %}
+
+{% block title %}{{ employee.first_name }} {{ employee.last_name }} | Employee Profile{% endblock %}
+{% block header_title %}Employee Profile & Shift History{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- TOP PROFILE CARD -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div class="flex items-center space-x-4">
+            <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl font-extrabold shadow-md">
+                {{ employee.first_name[0] }}{{ employee.last_name[0] }}
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <h2 class="text-xl font-extrabold text-slate-800">{{ employee.first_name }} {{ employee.last_name }}</h2>
+                    <span class="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">{{ employee.emp_no }}</span>
+                    {% if employee.employment_status == 'ACTIVE' or (not employee.employment_status and employee.is_active) %}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> ACTIVE
+                    </span>
+                    {% elif employee.employment_status == 'RELIEVED' %}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300 inline-flex items-center">
+                        <i class="fas fa-user-check mr-1.5 text-slate-500"></i> RELIEVED
+                    </span>
+                    {% elif employee.employment_status == 'SUSPENDED' %}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-300 inline-flex items-center">
+                        <i class="fas fa-ban mr-1.5 text-amber-500"></i> SUSPENDED
+                    </span>
+                    {% elif employee.employment_status == 'NO_CALL_NO_SHOW' %}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-300 inline-flex items-center">
+                        <i class="fas fa-phone-slash mr-1.5 text-rose-500"></i> NO CALL NO SHOW
+                    </span>
+                    {% else %}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">INACTIVE</span>
+                    {% endif %}
+
+                    {% if employee.is_admin %}
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 inline-flex items-center">
+                        <i class="fas fa-shield-halved mr-1.5 text-purple-600"></i> ADMIN (EXEMPT)
+                    </span>
+                    {% endif %}
+                </div>
+                <p class="text-xs font-semibold text-slate-500 mt-1">
+                    {{ employee.designation }} • <span class="text-blue-600 font-bold">{{ employee.dept_name }}</span>
+                </p>
+                <div class="flex flex-wrap items-center gap-4 text-xs text-slate-400 mt-2">
+                    <span><i class="fas fa-envelope mr-1 text-slate-400"></i> {{ employee.email }}</span>
+                    <span><i class="fas fa-phone mr-1 text-slate-400"></i> {{ employee.phone }}</span>
+                    <span><i class="fas fa-calendar mr-1 text-slate-400"></i> Joined {{ employee.join_date }}</span>
+                    {% if employee.status_date %}
+                    <span class="font-semibold text-slate-500"><i class="fas fa-clock-rotate-left mr-1"></i> Status Date: {{ employee.status_date }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5 w-full md:w-auto justify-end">
+            <a href="{{ url_for('employees.list_employees') }}" class="px-3 py-2 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition">
+                <i class="fas fa-arrow-left mr-1"></i> Back
+            </a>
+            <button onclick="openModal('statusModal')" class="px-3.5 py-2 rounded-lg text-xs font-bold transition shadow-xs flex items-center {% if employee.employment_status == 'RELIEVED' %}bg-indigo-50 text-indigo-700 border border-indigo-300 hover:bg-indigo-100{% elif employee.employment_status == 'SUSPENDED' %}bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100{% elif employee.employment_status == 'NO_CALL_NO_SHOW' %}bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100{% else %}bg-slate-100 text-slate-700 border border-slate-300 hover:bg-slate-200{% endif %}">
+                <i class="fas fa-user-tag mr-1.5"></i> Change Status
+            </button>
+            <button onclick="openModal('editEmployeeModal')" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center">
+                <i class="fas fa-pen-to-square mr-1.5"></i> Edit Profile & Pay
+            </button>
+            <button onclick="openModal('deleteEmployeeModal')" class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center" title="Delete Employee">
+                <i class="fas fa-trash-can mr-1"></i> Delete
+            </button>
+        </div>
+    </div>
+
+    <!-- CONTEXTUAL EMPLOYMENT STATUS ALERT BANNERS -->
+    {% if employee.employment_status == 'RELIEVED' %}
+    <div class="bg-indigo-50 border border-indigo-200 text-indigo-900 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-lg shrink-0">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold">Employee Relieved from Duty</h4>
+                <p class="text-xs text-indigo-700 mt-0.5">
+                    Relieved on <strong>{{ employee.status_date or 'N/A' }}</strong>. Reason: <em>{{ employee.status_reason or 'Resignation / Clearance' }}</em>. Daily biometric attendance and regular payroll are stopped.
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+            <a href="{{ url_for('settlement.final_settlement', employee_id=employee.id) }}" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition shadow-xs flex items-center">
+                <i class="fas fa-calculator mr-1.5"></i> Full & Final Settlement
+            </a>
+            <button onclick="openModal('statusModal')" class="px-3 py-2 bg-white hover:bg-indigo-100 text-indigo-800 text-xs font-semibold rounded-lg border border-indigo-300 transition">
+                Reactivate
+            </button>
+        </div>
+    </div>
+    {% elif employee.employment_status == 'SUSPENDED' %}
+    <div class="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center text-lg shrink-0">
+                <i class="fas fa-ban"></i>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold">Employee is Temporarily Suspended</h4>
+                <p class="text-xs text-amber-800 mt-0.5">
+                    Suspended effective <strong>{{ employee.status_date or 'N/A' }}</strong>. Disciplinary Note: <em>{{ employee.status_reason or 'Under Investigation' }}</em>. Attendance punches and salary calculations are withheld during suspension.
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+            <button onclick="openModal('statusModal')" class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition shadow-xs">
+                <i class="fas fa-rotate-left mr-1.5"></i> Revoke Suspension / Change
+            </button>
+        </div>
+    </div>
+    {% elif employee.employment_status == 'NO_CALL_NO_SHOW' %}
+    <div class="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center text-lg shrink-0">
+                <i class="fas fa-phone-slash"></i>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold">Flagged: No Call No Show (Job Abandonment)</h4>
+                <p class="text-xs text-rose-800 mt-0.5">
+                    Reported on <strong>{{ employee.status_date or 'N/A' }}</strong>. Details: <em>{{ employee.status_reason or 'Failed to report for scheduled shifts without notification' }}</em>.
+                </p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-2 shrink-0">
+            <button onclick="openModal('statusModal')" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition shadow-xs">
+                <i class="fas fa-pen mr-1.5"></i> Update Status
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- COMPENSATION & SHIFT SETTINGS ROW -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <div class="flex items-center justify-between">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Shift Salary</p>
+                {% if employee.salary_type == 'WEEKLY' or employee.pay_frequency == 'WEEKLY' %}
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">WEEKLY</span>
+                {% else %}
+                <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600">MONTHLY</span>
+                {% endif %}
+            </div>
+            <h4 class="text-xl font-extrabold text-slate-800 mt-1">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(employee.shift_salary) }}
+                <span class="text-xs text-slate-400 font-normal">/shift</span>
+            </h4>
+            <span class="text-[11px] text-slate-400">Fixed rate per daily shift worked</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Overtime (OT) Hourly Rate</p>
+            <h4 class="text-xl font-extrabold text-indigo-600 mt-1">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(employee.ot_hourly_rate if employee.ot_hourly_rate > 0 else employee.hourly_rate) }}/hr
+            </h4>
+            <span class="text-[11px] text-slate-400">Hourly pay strictly for post-shift OT</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">PF & ESI Statutory Status</p>
+            <div class="mt-1.5 space-y-1 text-xs">
+                <div class="flex justify-between">
+                    <span class="text-slate-600">Provident Fund (PF):</span>
+                    {% if employee.pf_enabled %}
+                    <span class="font-bold text-emerald-700">Deducted (12%)</span>
+                    {% else %}
+                    <span class="font-semibold text-slate-400">Not Applicable</span>
+                    {% endif %}
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-600">State Insurance (ESI):</span>
+                    {% if employee.esi_enabled %}
+                    <span class="font-bold text-emerald-700">Deducted (0.75%)</span>
+                    {% else %}
+                    <span class="font-semibold text-slate-400">Not Applicable</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Factory Safety Compliance</p>
+            <div class="mt-1">
+                {% if employee.safety_training_completed %}
+                <span class="inline-flex items-center text-xs font-bold text-emerald-700">
+                    <i class="fas fa-check-circle text-emerald-500 mr-1.5"></i> Training Completed
+                </span>
+                <p class="text-[10px] text-slate-500 font-mono mt-0.5">Date: {{ employee.safety_training_date or employee.join_date }}</p>
+                <p class="text-[10px] text-slate-400 truncate">Officer: {{ employee.safety_training_approved_by or 'Press Safety Officer' }}</p>
+                {% else %}
+                <span class="inline-flex items-center text-xs font-bold text-amber-600">
+                    <i class="fas fa-triangle-exclamation text-amber-500 mr-1.5"></i> Training Pending
+                </span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- TABS / SECTIONS -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- RECENT ATTENDANCE & SHIFT LOGS (2 cols) -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 lg:col-span-2">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-calendar-check text-blue-500"></i>
+                    <h3 class="text-sm font-bold text-slate-800">Shift Attendance Logs (Past 30 Days)</h3>
+                </div>
+                <span class="text-xs text-slate-400">{{ attendances|length }} records</span>
+            </div>
+
+            {% if employee.is_admin %}
+            <div class="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center space-x-3 text-xs text-purple-900 shadow-xs">
+                <div class="w-8 h-8 rounded-lg bg-purple-200 text-purple-800 flex items-center justify-center shrink-0 font-bold">
+                    <i class="fas fa-shield-halved"></i>
+                </div>
+                <div>
+                    <span class="font-bold block">Administrator Attendance Exemption</span>
+                    <span class="text-[11px] text-purple-700">This staff member is marked as an Administrator. Daily biometric clock-in/out is not mandatory, and no Loss of Pay (LOP) is deducted.</span>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-100">
+                            <th class="pb-2">Date</th>
+                            <th class="pb-2">Shift</th>
+                            <th class="pb-2">Punch In</th>
+                            <th class="pb-2">Punch Out</th>
+                            <th class="pb-2 text-center">Hours</th>
+                            <th class="pb-2 text-center">Status</th>
+                            <th class="pb-2 text-right">Allowance</th>
+                            <th class="pb-2 text-right">OT</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for att in attendances %}
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="py-2.5 font-mono text-slate-600">{{ att.date }}</td>
+                            <td class="py-2.5">
+                                {% if att.shift_name %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold" style="background-color: {{ att.shift_color }}15; color: {{ att.shift_color }};">
+                                    {{ att.shift_code }}
+                                </span>
+                                {% else %}
+                                <span class="text-slate-400">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2.5 font-mono text-[11px] text-slate-600">
+                                {{ att.punch_in.split(' ')[1] if att.punch_in else '-' }}
+                            </td>
+                            <td class="py-2.5 font-mono text-[11px] text-slate-600">
+                                {{ att.punch_out.split(' ')[1] if att.punch_out else '-' }}
+                            </td>
+                            <td class="py-2.5 text-center font-mono font-semibold">{{ att.work_hours }}h</td>
+                            <td class="py-2.5 text-center">
+                                {% if att.status == 'PRESENT' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">PRESENT</span>
+                                {% elif att.status == 'LATE' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">LATE ({{ att.late_mins }}m)</span>
+                                {% elif att.status == 'HALF_DAY' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700">HALF DAY</span>
+                                {% elif att.status == 'WEEKLY_OFF' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">OFF</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700">ABSENT</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2.5 text-right font-mono font-semibold text-emerald-600">
+                                {% if att.shift_allowance_amount > 0 %}
+                                +{{ company_info.currency_symbol }}{{ att.shift_allowance_amount }}
+                                {% else %}-{% endif %}
+                            </td>
+                            <td class="py-2.5 text-right font-mono font-bold text-indigo-600">
+                                {% if att.raw_ot_hours > 0 %}
+                                +{{ att.raw_ot_hours }}h
+                                {% else %}-{% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-6 text-slate-400">No attendance logs found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- OVERTIME & PAYSLIPS SIDEBAR (1 col) -->
+        <div class="space-y-6">
+            <!-- Overtime History -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-hourglass-half text-amber-500"></i>
+                        <h3 class="text-sm font-bold text-slate-800">Overtime Claims</h3>
+                    </div>
+                </div>
+
+                <div class="space-y-2.5 max-h-[300px] overflow-y-auto">
+                    {% for ot in overtimes %}
+                    <div class="p-2.5 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+                        <div>
+                            <span class="font-mono font-semibold text-slate-700">{{ ot.date }}</span>
+                            <div class="text-[11px] text-slate-400">
+                                <span>{{ ot.total_ot_hours }}h OT ({{ ot.multiplier }}x)</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="font-mono font-bold text-indigo-600 block">{{ company_info.currency_symbol }}{{ "%.2f"|format(ot.calculated_ot_pay) }}</span>
+                            {% if ot.status == 'APPROVED' %}
+                            <span class="text-[10px] font-bold text-emerald-600">APPROVED</span>
+                            {% elif ot.status == 'REJECTED' %}
+                            <span class="text-[10px] font-bold text-rose-600">REJECTED</span>
+                            {% else %}
+                            <span class="text-[10px] font-bold text-amber-600">PENDING</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-slate-400 italic text-center py-4">No overtime claims.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Salary Advances & Loans History -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-hand-holding-dollar text-purple-600"></i>
+                        <h3 class="text-sm font-bold text-slate-800">Salary Advances & Loans</h3>
+                    </div>
+                    <a href="{{ url_for('payroll.advances_portal') }}" class="text-[11px] text-purple-600 font-bold hover:underline">
+                        Manage <i class="fas fa-arrow-right ml-0.5 text-[9px]"></i>
+                    </a>
+                </div>
+
+                <div class="space-y-3">
+                    {% for adv in advances %}
+                    {% set pct = (adv.amount_repaid / adv.total_amount * 100) if adv.total_amount > 0 else 0 %}
+                    <div class="p-3 rounded-lg border border-slate-200 bg-slate-50 text-xs space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-800">{{ company_info.currency_symbol }}{{ "%.2f"|format(adv.total_amount) }}</span>
+                            {% if adv.status == 'ACTIVE' %}
+                            <span class="px-2 py-0.2 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">ACTIVE</span>
+                            {% else %}
+                            <span class="px-2 py-0.2 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600">SETTLED</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-slate-500">
+                            <span>Cut: <strong class="text-purple-700">{{ company_info.currency_symbol }}{{ "%.2f"|format(adv.weekly_deduction) }}/wk</strong></span>
+                            <span>Due: <strong class="text-rose-600">{{ company_info.currency_symbol }}{{ "%.2f"|format(adv.remaining_amount) }}</strong></span>
+                        </div>
+                        <div class="w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+                            <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ pct }}%"></div>
+                        </div>
+                        <span class="text-[10px] text-slate-400 block font-mono">Given: {{ adv.advance_date }} • Repaid: {{ "%.0f"|format(pct) }}%</span>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-slate-400 italic text-center py-4">No active or past salary advances.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Payslips History -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+                    <div class="flex items-center space-x-2">
+                        <i class="fas fa-file-invoice text-emerald-500"></i>
+                        <h3 class="text-sm font-bold text-slate-800">Issued Payslips</h3>
+                    </div>
+                </div>
+
+                <div class="space-y-2.5">
+                    {% for p in payslips %}
+                    <div class="p-2.5 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+                        <div>
+                            <span class="font-bold text-slate-700 block">{{ p.period_name }}</span>
+                            <span class="text-[11px] text-slate-400">Worked {{ p.days_worked }} days • {{ p.night_shifts_count }} night shifts</span>
+                        </div>
+                        <div class="text-right space-x-2">
+                            <span class="font-mono font-bold text-slate-800 block">{{ company_info.currency_symbol }}{{ "%.2f"|format(p.net_pay) }}</span>
+                            <a href="{{ url_for('payroll.view_payslip', payslip_id=p.id) }}" class="text-[11px] text-slate-600 font-semibold hover:underline">
+                                View <i class="fas fa-eye ml-0.5 text-[9px]"></i>
+                            </a>
+                            <a href="{{ url_for('payroll.view_payslip', payslip_id=p.id) }}?print=1" target="_blank" class="text-[11px] text-blue-600 font-bold hover:underline">
+                                Print <i class="fas fa-print ml-0.5 text-[9px]"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-xs text-slate-400 italic text-center py-4">No payslips generated yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- EDIT EMPLOYEE MODAL -->
+<div id="editEmployeeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                    <i class="fas fa-user-pen"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Edit Employee: {{ employee.first_name }} {{ employee.last_name }}</h3>
+                    <p class="text-[11px] text-slate-400">Update Shift Pay, OT Hourly Rate & Statutory Compliance</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('editEmployeeModal')" class="text-slate-400 hover:text-slate-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('employees.edit_employee', emp_id=employee.id) }}" method="POST" class="mt-4 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">First Name *</label>
+                    <input type="text" name="first_name" value="{{ employee.first_name }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Last Name *</label>
+                    <input type="text" name="last_name" value="{{ employee.last_name }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Email *</label>
+                    <input type="email" name="email" value="{{ employee.email }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Phone *</label>
+                    <input type="text" name="phone" value="{{ employee.phone }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Department</label>
+                    <select name="department_id" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                        {% for d in departments %}
+                        <option value="{{ d.id }}" {% if employee.department_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Designation</label>
+                    <input type="text" name="designation" value="{{ employee.designation }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Default Shift</label>
+                    <select name="default_shift_id" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                        <option value="">None / Rotational</option>
+                        {% for s in shifts %}
+                        <option value="{{ s.id }}" {% if employee.default_shift_id == s.id %}selected{% endif %}>{{ s.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Salary Model & Rates -->
+            <div class="pt-3 border-t border-slate-100">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-extrabold text-blue-700 uppercase tracking-wider">Salary Configuration</h4>
+                    <span class="text-[11px] text-slate-500 italic">Hourly rate strictly for OT (not for shift)</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Salary Type *</label>
+                        <select name="salary_type" id="editSalaryType" onchange="toggleEditSalaryFields()" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-bold text-purple-700 bg-purple-50">
+                            <option value="WEEKLY" {% if employee.salary_type == 'WEEKLY' or employee.pay_frequency == 'WEEKLY' %}selected{% endif %}>Weekly Salary</option>
+                            <option value="MONTHLY" {% if employee.salary_type == 'MONTHLY' and employee.pay_frequency == 'MONTHLY' %}selected{% endif %}>Monthly Salary</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Shift Salary ({{ company_info.currency_symbol }}/shift) *</label>
+                        <input type="number" step="0.01" name="shift_salary" value="{{ employee.shift_salary }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-emerald-700">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Overtime Hourly Rate ({{ company_info.currency_symbol }}) *</label>
+                        <input type="number" step="0.01" name="ot_hourly_rate" value="{{ employee.ot_hourly_rate if employee.ot_hourly_rate > 0 else employee.hourly_rate }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-indigo-700">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Employment Status *</label>
+                        <select name="employment_status" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-bold text-slate-700">
+                            <option value="ACTIVE" {% if employee.employment_status == 'ACTIVE' or (not employee.employment_status and employee.is_active) %}selected{% endif %}>Active Employee</option>
+                            <option value="RELIEVED" {% if employee.employment_status == 'RELIEVED' or (not employee.employment_status and not employee.is_active) %}selected{% endif %}>Relieved (Left Service)</option>
+                            <option value="SUSPENDED" {% if employee.employment_status == 'SUSPENDED' %}selected{% endif %}>Suspended (Disciplinary)</option>
+                            <option value="NO_CALL_NO_SHOW" {% if employee.employment_status == 'NO_CALL_NO_SHOW' %}selected{% endif %}>No Call No Show (NCNS)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Status Date</label>
+                        <input type="date" name="status_date" value="{{ employee.status_date or employee.join_date }}" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono">
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Status Reason / Notes</label>
+                    <input type="text" name="status_reason" value="{{ employee.status_reason or '' }}" placeholder="Reason for status (e.g. Resigned, Suspension Inquiry, NCNS)" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+            </div>
+
+            <!-- Statutory PF & ESI Checkboxes -->
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                <h5 class="font-bold text-slate-700 uppercase tracking-wider mb-2">Statutory Deductions Available</h5>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="flex items-center space-x-2.5 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                        <input type="checkbox" name="pf_enabled" value="1" {% if employee.pf_enabled %}checked{% endif %} class="rounded border-slate-300 text-blue-600 w-4 h-4">
+                        <div>
+                            <span class="font-bold text-slate-800 block">PF Available</span>
+                            <span class="text-[10px] text-slate-500">Deduct 12% PF on shift wages</span>
+                        </div>
+                    </label>
+                    <label class="flex items-center space-x-2.5 p-2 bg-white rounded-lg border border-slate-200 cursor-pointer">
+                        <input type="checkbox" name="esi_enabled" value="1" {% if employee.esi_enabled %}checked{% endif %} class="rounded border-slate-300 text-blue-600 w-4 h-4">
+                        <div>
+                            <span class="font-bold text-slate-800 block">ESI Available</span>
+                            <span class="text-[10px] text-slate-500">Deduct 0.75% ESI on gross pay</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Administrator Attendance Exemption Status -->
+            <div class="p-3 bg-purple-50 rounded-xl border border-purple-200">
+                <label class="flex items-center space-x-2.5 cursor-pointer">
+                    <input type="checkbox" name="is_admin" value="1" {% if employee.is_admin %}checked{% endif %} class="rounded border-purple-300 text-purple-600 focus:ring-purple-500 w-4 h-4">
+                    <div>
+                        <span class="font-bold text-purple-900 text-xs block">Mark as Administrator (Attendance Tracking Exempt)</span>
+                        <span class="text-[10px] text-purple-700 block mt-0.5">Admin staff are exempt from daily clock-in/out, biometric tracking, missed punch alerts, and payroll LOP deductions.</span>
+                    </div>
+                </label>
+            </div>
+
+            <!-- Factory Safety Compliance -->
+            <div class="p-3 bg-amber-50/70 rounded-xl border border-amber-200 text-xs">
+                <div class="flex items-center space-x-2 mb-2">
+                    <i class="fas fa-shield-halved text-amber-600"></i>
+                    <h5 class="font-bold text-amber-900 uppercase tracking-wider">Government Factory Rules & Safety Compliance</h5>
+                </div>
+                
+                <label class="flex items-center space-x-2.5 mb-2 cursor-pointer">
+                    <input type="checkbox" name="safety_training_completed" value="1" {% if employee.safety_training_completed %}checked{% endif %} class="rounded border-amber-300 text-amber-600 w-4 h-4">
+                    <span class="font-bold text-amber-900">Safety & Machine Training Completed</span>
+                </label>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                    <div>
+                        <label class="block text-[11px] text-slate-600 mb-1">Safety Clearance Date</label>
+                        <input type="date" name="safety_training_date" value="{{ employee.safety_training_date or employee.join_date }}" class="w-full text-xs rounded-lg border-slate-300 py-1.5 px-2.5 bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-600 mb-1">Approved By</label>
+                        <input type="text" name="safety_training_approved_by" value="{{ employee.safety_training_approved_by or 'Press Safety Officer' }}" class="w-full text-xs rounded-lg border-slate-300 py-1.5 px-2.5 bg-white">
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-200 flex justify-end space-x-3">
+                <button type="button" onclick="closeModal('editEmployeeModal')" class="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- CHANGE EMPLOYMENT STATUS MODAL -->
+<div id="statusModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-2">
+                <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold">
+                    <i class="fas fa-user-tag"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Change Employment Status</h3>
+                    <p class="text-[11px] text-slate-400">{{ employee.first_name }} {{ employee.last_name }} ({{ employee.emp_no }})</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('statusModal')" class="text-slate-400 hover:text-slate-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('employees.update_status', emp_id=employee.id) }}" method="POST" class="mt-4 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">New Employment Status *</label>
+                <select name="employment_status" required class="w-full text-xs rounded-lg border-slate-300 py-2.5 px-3 font-bold text-slate-800">
+                    <option value="ACTIVE" {% if employee.employment_status == 'ACTIVE' %}selected{% endif %}>
+                        🟢 Active Employee (In Service)
+                    </option>
+                    <option value="RELIEVED" {% if employee.employment_status == 'RELIEVED' %}selected{% endif %}>
+                        🔵 Relieved (Resigned / Left Service)
+                    </option>
+                    <option value="SUSPENDED" {% if employee.employment_status == 'SUSPENDED' %}selected{% endif %}>
+                        🟠 Suspended (Disciplinary Action)
+                    </option>
+                    <option value="NO_CALL_NO_SHOW" {% if employee.employment_status == 'NO_CALL_NO_SHOW' %}selected{% endif %}>
+                        🔴 No Call No Show (Job Abandonment / NCNS)
+                    </option>
+                </select>
+                <p class="text-[11px] text-slate-400 mt-1">
+                    Marking an employee as Relieved, Suspended, or NCNS halts active shift attendance & payroll.
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Effective Date *</label>
+                <input type="date" name="status_date" value="{{ employee.status_date or employee.join_date }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Reason / Factory Notes</label>
+                <textarea name="status_reason" rows="3" placeholder="State reasons, resignation notice, misconduct inquiry reference, or abandonment details..." class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">{{ employee.status_reason or '' }}</textarea>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('statusModal')" class="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                    Confirm & Update Status
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- PERMANENT DELETE CONFIRMATION MODAL -->
+<div id="deleteEmployeeModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+        <div class="flex items-center space-x-3 text-rose-600 pb-3 border-b border-rose-100">
+            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xl shrink-0">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h3 class="text-base font-bold text-slate-900">Delete Employee Permanently</h3>
+                <p class="text-[11px] text-rose-600 font-semibold">Irreversible Administrative Action</p>
+            </div>
+        </div>
+
+        <div class="mt-4 text-xs text-slate-600 space-y-2.5">
+            <p>
+                Are you sure you want to permanently delete:
+            </p>
+            <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-slate-800">
+                <strong>{{ employee.first_name }} {{ employee.last_name }}</strong> ({{ employee.emp_no }})<br>
+                <span class="text-slate-500 text-[11px]">{{ employee.designation }} • {{ employee.dept_name }}</span>
+            </div>
+            <p class="text-[11px] text-rose-700 font-medium">
+                <i class="fas fa-circle-exclamation mr-1"></i> This will purge this employee and all associated daily punches, attendance logs, overtime claims, and historical payslips.
+            </p>
+        </div>
+
+        <form action="{{ url_for('employees.delete_employee', emp_id=employee.id) }}" method="POST" class="mt-4 space-y-3">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Mandatory Reason for Deletion *</label>
+                <input type="text" name="deletion_reason" required placeholder="e.g. Duplicate profile, Incorrect onboarding, Clearance completed" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                <span class="text-[10px] text-slate-400 mt-1 block">
+                    This reason and all current employee records will be permanently archived in the Deletion Audit Log.
+                </span>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('deleteEmployeeModal')" class="px-4 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center">
+                    <i class="fas fa-trash-can mr-1.5"></i> Yes, Permanently Delete
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

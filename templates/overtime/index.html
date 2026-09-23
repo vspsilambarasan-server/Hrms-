@@ -1,0 +1,681 @@
+{% extends "base.html" %}
+
+{% block title %}Overtime Approvals & Policies | ApexHRMS{% endblock %}
+{% block header_title %}Overtime (OT) Approvals & Policy Configuration{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- KPI CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-amber-600 uppercase tracking-wider block">Pending Review</span>
+            <div class="flex items-baseline space-x-2 mt-1">
+                <span class="text-2xl font-black text-amber-600">{{ stats.pending_count }}</span>
+                <span class="text-xs text-slate-500 font-semibold">({{ "%.1f"|format(stats.pending_hours) }} hrs)</span>
+            </div>
+            <span class="text-xs text-slate-400 mt-1 block">Requires supervisor / HR authorization</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider block">Approved Overtime</span>
+            <div class="flex items-baseline space-x-2 mt-1">
+                <span class="text-2xl font-black text-emerald-700">{{ stats.approved_count }}</span>
+                <span class="text-xs text-slate-500 font-semibold">({{ "%.1f"|format(stats.approved_hours) }} hrs)</span>
+            </div>
+            <span class="text-xs text-slate-400 mt-1 block">Ready for payroll inclusion</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[11px] font-bold text-indigo-600 uppercase tracking-wider block">Total Approved OT Cost</span>
+            <span class="text-2xl font-black text-indigo-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.approved_cost) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-1 block">Calculated at 1.5x / 2.0x rates</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Policy Multipliers</span>
+                <p class="text-xs text-slate-700 font-semibold mt-1">
+                    Normal: <span class="font-bold text-blue-600">{{ settings.default_ot_multiplier }}x</span> | 
+                    Weekend: <span class="font-bold text-purple-600">{{ settings.weekend_ot_multiplier }}x</span>
+                </p>
+                <button onclick="openModal('policyModal')" class="text-xs text-blue-600 hover:underline font-bold mt-2 inline-block">
+                    Configure Policies <i class="fas fa-cog ml-0.5"></i>
+                </button>
+            </div>
+            <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600">
+                <i class="fas fa-sliders"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIMING VERIFICATION AUDIT NOTICE -->
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between text-xs text-blue-900 shadow-2xs">
+        <div class="flex items-center space-x-2.5">
+            <i class="fas fa-clock-rotate-left text-blue-600 text-base"></i>
+            <span><strong>Timing Verification Protocol:</strong> Verify actual <strong>Punch IN & Punch OUT</strong> biometric timestamps against scheduled shifts before approving overtime. All intermediate breaks can be audited in the employee's Day Timecard.</span>
+        </div>
+        <a href="{{ url_for('attendance.all_punches') }}" class="text-[11px] font-bold text-blue-800 hover:underline shrink-0 ml-3">
+            Open All Punches &raquo;
+        </a>
+    </div>
+
+    <!-- FILTER BAR & BATCH ACTIONS -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <!-- Row 1: Status Tabs & Batch Action -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg border border-slate-200 overflow-x-auto">
+                <a href="{{ url_for('overtime.list_overtime', status='ALL', dept=selected_dept, date=selected_date, emp_id=selected_emp) }}" 
+                   class="px-3 py-1.5 rounded-md text-xs font-bold transition whitespace-nowrap {% if status_filter == 'ALL' %}bg-white text-slate-800 shadow-xs{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+                    All ({{ stats.total_count }})
+                </a>
+                <a href="{{ url_for('overtime.list_overtime', status='PENDING', dept=selected_dept, date=selected_date, emp_id=selected_emp) }}" 
+                   class="px-3 py-1.5 rounded-md text-xs font-bold transition whitespace-nowrap {% if status_filter == 'PENDING' %}bg-amber-500 text-slate-950 shadow-xs{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+                    Pending ({{ stats.pending_count }})
+                </a>
+                <a href="{{ url_for('overtime.list_overtime', status='APPROVED', dept=selected_dept, date=selected_date, emp_id=selected_emp) }}" 
+                   class="px-3 py-1.5 rounded-md text-xs font-bold transition whitespace-nowrap {% if status_filter == 'APPROVED' %}bg-emerald-600 text-white shadow-xs{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+                    Approved ({{ stats.approved_count }})
+                </a>
+                <a href="{{ url_for('overtime.list_overtime', status='REJECTED', dept=selected_dept, date=selected_date, emp_id=selected_emp) }}" 
+                   class="px-3 py-1.5 rounded-md text-xs font-bold transition whitespace-nowrap {% if status_filter == 'REJECTED' %}bg-rose-600 text-white shadow-xs{% else %}text-slate-500 hover:text-slate-800{% endif %}">
+                    Rejected
+                </a>
+            </div>
+
+            {% if stats.pending_count > 0 %}
+            <form action="{{ url_for('overtime.batch_approve') }}" method="POST" onsubmit="return confirm('Are you sure you want to batch approve all {{ stats.pending_count }} pending overtime claims?');">
+                <button type="submit" class="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm whitespace-nowrap">
+                    <i class="fas fa-check-double mr-1.5"></i> Batch Approve Pending ({{ stats.pending_count }})
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Row 2: Detailed Filters & Quick Search -->
+        <div class="pt-3 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <form method="GET" action="{{ url_for('overtime.list_overtime') }}" class="flex flex-wrap items-center gap-2">
+                <input type="hidden" name="status" value="{{ status_filter }}">
+
+                <!-- Date Filter -->
+                <div class="flex items-center space-x-1">
+                    <span class="text-xs text-slate-500 font-semibold"><i class="fas fa-calendar-day text-slate-400 mr-1"></i> Date:</span>
+                    <input type="date" name="date" value="{{ selected_date or '' }}" onchange="this.form.submit()" 
+                           class="text-xs py-1.5 px-2.5 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-mono">
+                </div>
+
+                <!-- Department Filter -->
+                <select name="dept" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                    <option value="">All Departments</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if selected_dept|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <!-- Employee Filter -->
+                <select name="emp_id" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                    <option value="">All Employees</option>
+                    {% for e in active_employees %}
+                    <option value="{{ e.id }}" {% if selected_emp|string == e.id|string %}selected{% endif %}>{{ e.emp_no }} - {{ e.first_name }} {{ e.last_name }}</option>
+                    {% endfor %}
+                </select>
+
+                {% if selected_date or selected_dept or selected_emp %}
+                <a href="{{ url_for('overtime.list_overtime', status=status_filter) }}" 
+                   class="text-xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2.5 py-1.5 rounded-lg border border-rose-200 transition">
+                    <i class="fas fa-times mr-1"></i> Reset
+                </a>
+                {% endif %}
+            </form>
+
+            <!-- Real-time Quick Search -->
+            <div class="relative w-full md:w-64">
+                <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                <input type="text" id="otSearchInput" onkeyup="filterOtTable()" placeholder="Search staff, code, date..." 
+                       class="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg border-slate-200 focus:border-blue-500 bg-slate-50">
+            </div>
+        </div>
+    </div>
+
+    <!-- OVERTIME CLAIMS & TIMING VERIFICATION TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs" id="otTable">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Date & Day</th>
+                        <th class="py-3 px-4">Employee</th>
+                        <th class="py-3 px-4">Scheduled Shift</th>
+                        <th class="py-3 px-4 bg-blue-50/40 min-w-[260px]">
+                            <div class="flex items-center space-x-1.5 text-blue-900">
+                                <i class="fas fa-stopwatch text-blue-600"></i>
+                                <span>Actual Punch Timings (IN / OUT)</span>
+                            </div>
+                        </th>
+                        <th class="py-3 px-4 text-center">Work & OT Hours</th>
+                        <th class="py-3 px-4 text-center">Rate</th>
+                        <th class="py-3 px-4 text-right">Est. Payout</th>
+                        <th class="py-3 px-4 text-center">Status</th>
+                        <th class="py-3 px-4 text-right">Authorization</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for ot in overtime_records %}
+                    <tr class="hover:bg-slate-50 transition ot-row" 
+                        data-search="{{ ot.date }} {{ ot.date_weekday }} {{ ot.first_name }} {{ ot.last_name }} {{ ot.emp_no }} {{ ot.dept_name }} {{ ot.shift_code }}">
+                        
+                        <!-- DATE & DAY -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="font-mono font-extrabold text-slate-800 text-xs block">{{ ot.date }}</span>
+                            <span class="inline-block px-2 py-0.5 rounded text-[10px] font-semibold mt-0.5 
+                                {% if ot.is_weekend %}bg-purple-50 text-purple-700 border border-purple-200
+                                {% else %}bg-slate-100 text-slate-600 border border-slate-200{% endif %}">
+                                {{ ot.date_weekday or ot.date_short }}
+                            </span>
+                        </td>
+
+                        <!-- EMPLOYEE -->
+                        <td class="py-3 px-4">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                    {{ ot.first_name[:1] }}{{ ot.last_name[:1] if ot.last_name else '' }}
+                                </div>
+                                <div>
+                                    <span class="font-bold text-slate-800 block">{{ ot.first_name }} {{ ot.last_name }}</span>
+                                    <div class="flex items-center space-x-1.5 mt-0.5">
+                                        <span class="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">{{ ot.emp_no }}</span>
+                                        <span class="text-[10px] text-slate-400">{{ ot.dept_name }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- SCHEDULED SHIFT -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                {{ ot.shift_code }}
+                            </span>
+                            <span class="font-mono text-xs text-slate-600 font-semibold block mt-0.5">
+                                {{ ot.shift_display }}
+                            </span>
+                            {% if ot.is_overnight %}
+                            <span class="inline-block px-1.5 py-0.2 text-[9px] font-extrabold bg-indigo-50 text-indigo-700 rounded border border-indigo-200 mt-0.5">
+                                <i class="fas fa-moon mr-0.5"></i> Night Duty (+1d)
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- ACTUAL BIOMETRIC PUNCH TIMINGS (IN / OUT) -->
+                        <td class="py-3 px-4 bg-blue-50/20">
+                            {% if ot.has_punches %}
+                            <div class="space-y-1.5">
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <!-- PUNCH IN BADGE -->
+                                    <span class="inline-flex items-center px-2 py-0.8 rounded-md text-[11px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs" 
+                                          title="Biometric Punch IN Timestamp: {{ ot.punch_in }}">
+                                        <i class="fas fa-sign-in-alt text-emerald-600 mr-1.5"></i>
+                                        IN: {{ ot.in_time }}
+                                    </span>
+                                    {% if ot.pre_ot_val > 0 %}
+                                    <span class="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-300" 
+                                          title="Came early before shift start (+{{ ot.pre_ot_val }}h Pre-OT)">
+                                        Early +{{ ot.pre_ot_val }}h
+                                    </span>
+                                    {% endif %}
+
+                                    <!-- PUNCH OUT BADGE -->
+                                    <span class="inline-flex items-center px-2 py-0.8 rounded-md text-[11px] font-mono font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-2xs"
+                                          title="Biometric Punch OUT Timestamp: {{ ot.punch_out }}">
+                                        <i class="fas fa-sign-out-alt text-indigo-600 mr-1.5"></i>
+                                        OUT: {{ ot.out_time }}
+                                    </span>
+                                    {% if ot.is_next_day %}
+                                    <span class="text-[9px] font-extrabold text-purple-700 bg-purple-100 px-1.5 py-0.5 rounded border border-purple-300" 
+                                          title="Clocked out next day ({{ ot.out_date_str }})">
+                                        +1 Day ({{ ot.out_date_str }})
+                                    </span>
+                                    {% endif %}
+                                    {% if ot.post_ot_val > 0 %}
+                                    <span class="text-[9px] font-bold text-indigo-700 bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-300" 
+                                          title="Stayed late after shift end (+{{ ot.post_ot_val }}h Post-OT)">
+                                        Late +{{ ot.post_ot_val }}h
+                                    </span>
+                                    {% endif %}
+                                </div>
+
+                                <!-- INTERMEDIATE PUNCHES & DAY TIMECARD LINK -->
+                                <div class="flex items-center space-x-2 text-[10px]">
+                                    <a href="{{ url_for('attendance.all_punches', date=ot.date, emp_id=ot.employee_id) }}" 
+                                       target="_blank" 
+                                       class="font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center" 
+                                       title="View complete punches and intermediate break intervals in Attendance module">
+                                        <i class="fas fa-fingerprint text-blue-500 mr-1"></i>
+                                        Verify Day Timecard &raquo;
+                                    </a>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="flex items-center space-x-2 text-slate-400">
+                                <span class="font-mono text-xs italic">No biometric scan</span>
+                                <a href="{{ url_for('attendance.all_punches', date=ot.date, emp_id=ot.employee_id) }}" target="_blank" class="text-[10px] text-blue-600 underline">Add Punch ↗</a>
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- WORK & OT HOURS -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <span class="font-extrabold text-indigo-700 text-sm font-mono block">
+                                {% if ot.status == 'APPROVED' %}{{ ot.approved_hours }}{% else %}{{ ot.total_ot_hours }}{% endif %}h OT
+                            </span>
+                            <div class="flex items-center justify-center space-x-1 text-[10px] text-slate-500 mt-0.5">
+                                <span>Work: {{ "%.2f"|format(ot.work_hours or 0) }}h</span>
+                                <span>•</span>
+                                {% if ot.ot_type == 'WEEKEND' %}
+                                <span class="font-bold text-purple-700">W/E</span>
+                                {% elif ot.ot_type == 'HOLIDAY' %}
+                                <span class="font-bold text-rose-700">HOL</span>
+                                {% else %}
+                                <span>STD</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- MULTIPLIER -->
+                        <td class="py-3 px-4 text-center font-mono font-bold text-slate-700">
+                            {{ ot.multiplier }}x
+                        </td>
+
+                        <!-- ESTIMATED PAYOUT -->
+                        <td class="py-3 px-4 text-right font-mono font-extrabold text-slate-800 whitespace-nowrap">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(ot.calculated_ot_pay) }}
+                        </td>
+
+                        <!-- STATUS -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            {% if ot.status == 'APPROVED' %}
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <i class="fas fa-check-circle mr-1"></i> APPROVED
+                            </span>
+                            {% elif ot.status == 'REJECTED' %}
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <i class="fas fa-times-circle mr-1"></i> REJECTED
+                            </span>
+                            {% else %}
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <i class="fas fa-clock mr-1"></i> PENDING
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- AUTHORIZATION ACTIONS -->
+                        <td class="py-3 px-4 text-right whitespace-nowrap">
+                            {% if ot.status == 'PENDING' %}
+                            <div class="inline-flex items-center space-x-1.5">
+                                <button type="button"
+                                        onclick="openReviewModal(
+                                            {{ ot.id }}, 
+                                            '{{ ot.first_name }} {{ ot.last_name }}', 
+                                            '{{ ot.emp_no }}', 
+                                            '{{ ot.dept_name }}', 
+                                            '{{ ot.date }}', 
+                                            '{{ ot.date_weekday }}', 
+                                            '{{ ot.shift_name }} ({{ ot.shift_code }})', 
+                                            '{{ ot.shift_display }}', 
+                                            '{{ ot.in_time }} ({{ ot.in_ampm }})', 
+                                            '{{ ot.out_time }} ({{ ot.out_ampm }})', 
+                                            {{ 'true' if ot.is_next_day else 'false' }}, 
+                                            '{{ ot.out_date_str }}', 
+                                            {{ ot.work_hours or 0 }}, 
+                                            {{ ot.pre_ot_val }}, 
+                                            {{ ot.post_ot_val }}, 
+                                            {{ ot.total_ot_hours }}, 
+                                            {{ ot.multiplier }}, 
+                                            {{ ot.calculated_ot_pay }}, 
+                                            {{ ot.employee_id }}
+                                        )" 
+                                        class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition flex items-center space-x-1">
+                                    <i class="fas fa-magnifying-glass-chart"></i>
+                                    <span>Verify & Review</span>
+                                </button>
+                                
+                                <form action="{{ url_for('overtime.review_action', ot_id=ot.id) }}" method="POST" class="inline">
+                                    <input type="hidden" name="action" value="APPROVE">
+                                    <input type="hidden" name="approved_hours" value="{{ ot.total_ot_hours }}">
+                                    <button type="submit" class="p-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs transition" title="1-Click Approve Exact Hours">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                </form>
+                            </div>
+                            {% else %}
+                            <div class="text-[11px] text-slate-500 font-semibold">
+                                <span>{{ ot.approved_by or "HR" }}</span>
+                                {% if ot.reason %}
+                                <span class="block text-[10px] text-slate-400 font-normal italic truncate max-w-[140px]" title="{{ ot.reason }}">{{ ot.reason }}</span>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-12 text-slate-400 italic">
+                            <i class="fas fa-inbox text-3xl text-slate-300 block mb-2"></i>
+                            No overtime records match your filter criteria.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ======================================================== -->
+<!-- ENHANCED REVIEW & TIMING VERIFICATION MODAL             -->
+<!-- ======================================================== -->
+<div id="reviewOtModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        
+        <!-- MODAL HEADER -->
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <i class="fas fa-clock-rotate-left text-blue-400 text-base"></i>
+                <div>
+                    <h3 class="font-bold text-sm">Verify & Review Overtime Claim</h3>
+                    <p class="text-[11px] text-slate-400">Verify biometric punch timings and shift hours before authorizing</p>
+                </div>
+            </div>
+            <button onclick="closeModal('reviewOtModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form id="reviewOtForm" method="POST" class="p-5 space-y-4">
+            
+            <!-- TARGET STAFF & OT DATE BANNER -->
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center shadow-sm" id="reviewEmpAvatar">
+                        EM
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-extrabold text-slate-900 text-sm" id="reviewEmpName">Employee Name</span>
+                            <span class="px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-blue-200 text-blue-900" id="reviewEmpNo">EMP0000</span>
+                        </div>
+                        <span class="text-xs text-slate-600 block mt-0.5" id="reviewDeptName">Department</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Overtime Date</span>
+                    <span class="font-mono font-extrabold text-blue-800 text-xs bg-white px-2.5 py-1 rounded-lg border border-blue-200 inline-block mt-0.5" id="reviewDateBadge">
+                        YYYY-MM-DD
+                    </span>
+                    <span class="block text-[10px] font-semibold text-slate-500 mt-0.5" id="reviewWeekday">Weekday</span>
+                </div>
+            </div>
+
+            <!-- TIMING VERIFICATION AUDIT PANEL -->
+            <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center">
+                        <i class="fas fa-fingerprint text-blue-600 mr-1.5"></i> Biometric Scan Verification
+                    </span>
+                    <span class="text-xs text-slate-600">
+                        Shift: <strong class="text-slate-800" id="reviewShiftTiming">09:00 - 18:00</strong>
+                    </span>
+                </div>
+
+                <!-- SIDE-BY-SIDE PUNCH IN / OUT CARDS -->
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- IN PUNCH -->
+                    <div class="bg-white p-3 rounded-lg border border-emerald-200 shadow-2xs">
+                        <span class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider flex items-center">
+                            <i class="fas fa-sign-in-alt text-emerald-600 mr-1"></i> Punch IN Time
+                        </span>
+                        <div class="text-base font-mono font-black text-emerald-900 mt-1" id="reviewPunchInTime">
+                            --:--:--
+                        </div>
+                        <span class="text-[10px] text-emerald-700 font-semibold block mt-0.5" id="reviewPreOtNote">
+                            Scheduled Start: 09:00
+                        </span>
+                    </div>
+
+                    <!-- OUT PUNCH -->
+                    <div class="bg-white p-3 rounded-lg border border-indigo-200 shadow-2xs">
+                        <span class="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center">
+                            <i class="fas fa-sign-out-alt text-indigo-600 mr-1"></i> Punch OUT Time
+                        </span>
+                        <div class="text-base font-mono font-black text-indigo-900 mt-1" id="reviewPunchOutTime">
+                            --:--:--
+                        </div>
+                        <span class="text-[10px] text-indigo-700 font-semibold block mt-0.5" id="reviewPostOtNote">
+                            Scheduled End: 18:00
+                        </span>
+                    </div>
+                </div>
+
+                <!-- ATTENDANCE & OT SUMMARY ROW -->
+                <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-200 text-center">
+                    <div class="bg-white p-2 rounded-lg border border-slate-200">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Net Work Hours</span>
+                        <span class="text-xs font-mono font-extrabold text-slate-800" id="reviewWorkHours">0.0h</span>
+                    </div>
+                    <div class="bg-white p-2 rounded-lg border border-slate-200">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Detected OT</span>
+                        <span class="text-xs font-mono font-black text-indigo-700" id="reviewDetectedOt">0.0h</span>
+                    </div>
+                    <div class="bg-white p-2 rounded-lg border border-slate-200">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Est. Pay (Rate)</span>
+                        <span class="text-xs font-mono font-bold text-emerald-700" id="reviewEstPay">₹0.00</span>
+                    </div>
+                </div>
+
+                <!-- DIRECT LINK TO ALL PUNCHES OF THIS DAY -->
+                <div class="pt-1 flex items-center justify-between text-xs">
+                    <span class="text-slate-500 text-[11px]">Need to inspect tea & lunch break intervals?</span>
+                    <a id="reviewTimecardLink" href="#" target="_blank" 
+                       class="font-bold text-blue-600 hover:text-blue-800 hover:underline flex items-center">
+                        <i class="fas fa-arrow-up-right-from-square mr-1"></i> Open Day Timecard &raquo;
+                    </a>
+                </div>
+            </div>
+
+            <!-- APPROVED HOURS ADJUSTMENT WITH QUICK CHIPS -->
+            <div>
+                <div class="flex items-center justify-between mb-1">
+                    <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Authorized Overtime Hours <span class="text-rose-500">*</span>
+                    </label>
+                    <span class="text-[11px] text-slate-500">Detected: <strong class="font-mono text-indigo-700" id="reviewDetectedHoursLabel">0.0h</strong></span>
+                </div>
+                
+                <!-- Quick Preset Chips -->
+                <div class="flex flex-wrap gap-1.5 mb-2">
+                    <button type="button" onclick="setReviewHoursFromDetected()" 
+                            class="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 transition">
+                        Full Detected (<span id="chipFullHours">0.0h</span>)
+                    </button>
+                    <button type="button" onclick="setReviewHours(0.5)" class="px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200">0.5h</button>
+                    <button type="button" onclick="setReviewHours(1.0)" class="px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200">1.0h</button>
+                    <button type="button" onclick="setReviewHours(1.5)" class="px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200">1.5h</button>
+                    <button type="button" onclick="setReviewHours(2.0)" class="px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200">2.0h</button>
+                    <button type="button" onclick="setReviewHours(3.0)" class="px-2 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200">3.0h</button>
+                </div>
+
+                <input type="number" step="0.25" id="reviewApprovedHours" name="approved_hours" required 
+                       class="w-full text-xs font-mono font-bold rounded-lg border-slate-300 py-2 px-3 bg-white focus:border-blue-500">
+                <span class="text-[11px] text-slate-400 mt-1 block">Hours approved here flow directly into weekly and monthly payslips.</span>
+            </div>
+
+            <!-- SUPERVISOR REMARKS WITH QUICK AUDIT CHIPS -->
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Supervisor Verification Remarks
+                </label>
+                <div class="flex flex-wrap gap-1 mb-1.5 text-[10px]">
+                    <button type="button" onclick="setReviewRemarks('Verified press machine overtime duty')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Press duty</button>
+                    <button type="button" onclick="setReviewRemarks('Shift handover & printing cylinder cleaning')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Shift handover</button>
+                    <button type="button" onclick="setReviewRemarks('Urgent packaging & book binding delivery order')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Dispatch order</button>
+                    <button type="button" onclick="setReviewRemarks('Authorized extended evening overtime by plant head')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Pre-authorized</button>
+                </div>
+                <input type="text" name="remarks" id="reviewRemarks" placeholder="E.g. Verified late checkout on Heidelberg offset press" 
+                       class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white">
+            </div>
+
+            <!-- MODAL ACTIONS -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="submit" name="action" value="REJECT" 
+                        class="px-3.5 py-2 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 text-xs font-bold transition">
+                    <i class="fas fa-times-circle mr-1"></i> Reject Claim
+                </button>
+                
+                <div class="flex items-center space-x-2">
+                    <button type="button" onclick="closeModal('reviewOtModal')" 
+                            class="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+                        Cancel
+                    </button>
+                    <button type="submit" name="action" value="APPROVE" 
+                            class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm transition flex items-center space-x-1.5">
+                        <i class="fas fa-check-double"></i>
+                        <span>Authorize Overtime</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ======================================================== -->
+<!-- POLICY CONFIGURATION MODAL                               -->
+<!-- ======================================================== -->
+<div id="policyModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Overtime & Working Hours Policy</h3>
+            <button onclick="closeModal('policyModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('overtime.update_settings') }}" method="POST" class="p-5 space-y-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Normal Day Multiplier</label>
+                    <input type="number" step="0.1" name="default_ot_multiplier" value="{{ settings.default_ot_multiplier }}" class="w-full text-xs font-bold rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Weekend Rest Multiplier</label>
+                    <input type="number" step="0.1" name="weekend_ot_multiplier" value="{{ settings.weekend_ot_multiplier }}" class="w-full text-xs font-bold rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Public Holiday Multiplier</label>
+                    <input type="number" step="0.1" name="holiday_ot_multiplier" value="{{ settings.holiday_ot_multiplier }}" class="w-full text-xs font-bold rounded-lg border-slate-300 py-2 px-3">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Standard Days in Month</label>
+                    <input type="number" name="standard_month_days" value="{{ settings.standard_month_days }}" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Standard Work Hours / Day</label>
+                    <input type="number" step="0.5" name="standard_day_hours" value="{{ settings.standard_day_hours }}" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('policyModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Save Policy
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentDetectedHours = 0.0;
+
+function filterOtTable() {
+    const q = (document.getElementById('otSearchInput').value || '').toLowerCase();
+    document.querySelectorAll('.ot-row').forEach(row => {
+        const text = (row.getAttribute('data-search') || '').toLowerCase();
+        row.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+function openReviewModal(otId, empName, empNo, deptName, otDate, weekday, shiftName, shiftTiming, inTime, outTime, isNextDay, outDateStr, workHours, preOt, postOt, totalOt, multiplier, estPay, empId) {
+    const form = document.getElementById('reviewOtForm');
+    form.action = `/overtime/${otId}/action`;
+    
+    currentDetectedHours = parseFloat(totalOt) || 0.0;
+    
+    // Header & Target Info
+    document.getElementById('reviewEmpName').textContent = empName;
+    document.getElementById('reviewEmpNo').textContent = empNo;
+    document.getElementById('reviewDeptName').textContent = deptName;
+    
+    const initials = empName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    document.getElementById('reviewEmpAvatar').textContent = initials || 'EM';
+    
+    document.getElementById('reviewDateBadge').textContent = otDate;
+    document.getElementById('reviewWeekday').textContent = weekday || 'Overtime Shift';
+    
+    // Shift & Punches
+    document.getElementById('reviewShiftTiming').textContent = `${shiftName} (${shiftTiming})`;
+    document.getElementById('reviewPunchInTime').textContent = inTime || '--:--:--';
+    document.getElementById('reviewPunchOutTime').textContent = outTime || '--:--:--';
+    
+    if (preOt > 0) {
+        document.getElementById('reviewPreOtNote').textContent = `Early Check-in (+${preOt}h Pre-OT)`;
+    } else {
+        document.getElementById('reviewPreOtNote').textContent = `Shift Start: ${shiftTiming.split('-')[0].trim()}`;
+    }
+    
+    if (isNextDay) {
+        document.getElementById('reviewPostOtNote').textContent = `Clocked out next day (+1d ${outDateStr || ''}) • Late +${postOt}h`;
+    } else if (postOt > 0) {
+        document.getElementById('reviewPostOtNote').textContent = `Late Checkout (+${postOt}h Post-OT)`;
+    } else {
+        document.getElementById('reviewPostOtNote').textContent = `Shift End: ${shiftTiming.split('-')[1].trim()}`;
+    }
+    
+    // Summary Cards
+    document.getElementById('reviewWorkHours').textContent = `${(parseFloat(workHours) || 0).toFixed(2)}h`;
+    document.getElementById('reviewDetectedOt').textContent = `${currentDetectedHours.toFixed(2)}h`;
+    document.getElementById('reviewEstPay').textContent = `₹${(parseFloat(estPay) || 0).toFixed(2)} (${multiplier}x)`;
+    
+    // Link to Day's Timecard
+    document.getElementById('reviewTimecardLink').href = `/attendance/all-punches?date=${otDate}&emp_id=${empId}`;
+    
+    // Form Inputs
+    document.getElementById('reviewDetectedHoursLabel').textContent = `${currentDetectedHours.toFixed(2)}h`;
+    document.getElementById('chipFullHours').textContent = `${currentDetectedHours.toFixed(2)}h`;
+    document.getElementById('reviewApprovedHours').value = currentDetectedHours.toFixed(2);
+    document.getElementById('reviewRemarks').value = '';
+    
+    openModal('reviewOtModal');
+}
+
+function setReviewHours(hrs) {
+    document.getElementById('reviewApprovedHours').value = hrs;
+}
+
+function setReviewHoursFromDetected() {
+    document.getElementById('reviewApprovedHours').value = currentDetectedHours.toFixed(2);
+}
+
+function setReviewRemarks(remark) {
+    document.getElementById('reviewRemarks').value = remark;
+}
+</script>
+{% endblock %}

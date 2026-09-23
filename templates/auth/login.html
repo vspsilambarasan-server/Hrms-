@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In | {{ company_info.company_name if company_info else 'Vasantham Printers' }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-slate-900 min-h-screen flex items-center justify-center p-4 antialiased text-slate-800">
+
+    <div class="max-w-md w-full">
+        <!-- BRANDING HEADER -->
+        <div class="text-center mb-6 space-y-2">
+            <div class="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white items-center justify-center text-2xl font-black shadow-xl shadow-blue-500/20 mb-2">
+                VP
+            </div>
+            <h1 class="text-2xl font-black text-white tracking-tight uppercase">
+                {{ company_info.company_name if company_info else 'Vasantham Printers' }}
+            </h1>
+            <p class="text-xs text-slate-400 font-medium">
+                Offset Commercial Printing & Packaging Works • Sivakasi
+            </p>
+            <div class="inline-block px-3 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-semibold">
+                HRMS & Shift Overtime Management Portal
+            </div>
+        </div>
+
+        <!-- LOGIN CARD -->
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 space-y-6">
+            <div class="border-b border-slate-100 pb-4">
+                <h2 class="text-lg font-bold text-slate-900">Sign in to your account</h2>
+                <p class="text-xs text-slate-500 mt-0.5">Authorized supervisors and management staff only</p>
+            </div>
+
+            <!-- FLASH MESSAGES -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="p-3 rounded-xl text-xs font-semibold flex items-center space-x-2 {% if category == 'danger' %}bg-rose-50 text-rose-800 border border-rose-200{% elif category == 'success' %}bg-emerald-50 text-emerald-800 border border-emerald-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+                            <i class="fas {% if category == 'danger' %}fa-circle-exclamation text-rose-600{% elif category == 'success' %}fa-circle-check text-emerald-600{% else %}fa-circle-info text-blue-600{% endif %}"></i>
+                            <span>{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}" class="space-y-4">
+                <!-- USERNAME -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Username</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fas fa-user text-xs"></i>
+                        </div>
+                        <input type="text" name="username" value="{{ username or '' }}" required autofocus
+                               placeholder="Enter username (e.g. admin)"
+                               class="w-full pl-9 pr-4 py-2.5 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:outline-hidden font-medium text-slate-900">
+                    </div>
+                </div>
+
+                <!-- PASSWORD -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                            <i class="fas fa-lock text-xs"></i>
+                        </div>
+                        <input type="password" id="loginPassword" name="password" required
+                               placeholder="Enter your password"
+                               class="w-full pl-9 pr-10 py-2.5 text-xs rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:outline-hidden font-medium text-slate-900">
+                        <button type="button" onclick="togglePasswordVisibility()" 
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <i id="eyeIcon" class="far fa-eye text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- SUBMIT BUTTON -->
+                <button type="submit" 
+                        class="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-600/30 transition flex items-center justify-center space-x-2 cursor-pointer">
+                    <i class="fas fa-arrow-right-to-bracket"></i>
+                    <span>Secure Sign In</span>
+                </button>
+            </form>
+
+            <!-- DEFAULT CREDENTIALS HELPER -->
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center space-y-1">
+                <span class="text-[11px] text-slate-500 font-medium">Default Administrator Credentials:</span>
+                <p class="text-xs font-mono font-bold text-slate-700">
+                    Username: <span class="text-blue-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">admin</span> • 
+                    Password: <span class="text-blue-600 bg-white px-1.5 py-0.5 rounded border border-slate-200">admin123</span>
+                </p>
+            </div>
+        </div>
+
+        <p class="text-center text-xs text-slate-500 mt-6">
+            &copy; 2026 {{ company_info.company_name if company_info else 'Vasantham Printers' }}. All rights reserved.
+        </p>
+    </div>
+
+    <script>
+    function togglePasswordVisibility() {
+        const input = document.getElementById('loginPassword');
+        const icon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'far fa-eye-slash text-xs';
+        } else {
+            input.type = 'password';
+            icon.className = 'far fa-eye text-xs';
+        }
+    }
+    </script>
+</body>
+</html>

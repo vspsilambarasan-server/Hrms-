@@ -1,0 +1,488 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly Contractor Salary Calculation | Vasantham Printers{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- PAGE HEADER -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-700 text-white flex items-center justify-center shadow-md shadow-emerald-600/20">
+                <i class="fas fa-calendar-week text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2.5">
+                    <h1 class="text-xl font-bold text-slate-900">Weekly Contractor Salary Calculation</h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 font-mono">
+                        {{ week_label }}
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Weekly piece-rate aggregation, item-wise pay calculation, batch slips, and weekend payout settlement.
+                </p>
+            </div>
+        </div>
+
+        <!-- QUICK ACTIONS -->
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- BATCH PRINT SLIPS -->
+            <a href="{{ url_for('piece_rate.weekly_slips_batch', start=week_start, end=week_end) }}" 
+               target="_blank"
+               class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-slate-900 hover:bg-slate-800 text-white shadow-sm transition">
+                <i class="fas fa-print mr-1.5 text-slate-300"></i> Batch Print Weekly Slips
+            </a>
+
+            <!-- SETTLE ALL UNPAID -->
+            {% if totals.grand_unpaid > 0 %}
+            <button type="button" 
+                    onclick="openSettleAllModal()"
+                    class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-hand-holding-dollar mr-1.5"></i> Settle Week (₹{{ "{:,.2f}".format(totals.grand_unpaid) }})
+            </button>
+            {% else %}
+            <span class="inline-flex items-center px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <i class="fas fa-check-circle mr-1.5"></i> All Week Settled
+            </span>
+            {% endif %}
+
+            <a href="{{ url_for('piece_rate.export_weekly_salary_csv', start=week_start, end=week_end) }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+               title="Export Weekly Contractor Payroll CSV">
+                <i class="fas fa-download mr-1.5 text-slate-400"></i> CSV
+            </a>
+            
+            <a href="{{ url_for('piece_rate.index') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-cubes-stacked mr-1.5 text-slate-500"></i> Qty Tracker
+            </a>
+        </div>
+    </div>
+
+    <!-- WEEK SELECTOR & QUICK PRESETS BAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <form method="GET" action="{{ url_for('piece_rate.weekly_salary') }}" class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600 whitespace-nowrap">Week Start:</label>
+                <input type="date" name="start_date" value="{{ week_start }}" required
+                       class="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-600 whitespace-nowrap">Week End:</label>
+                <input type="date" name="end_date" value="{{ week_end }}" required
+                       class="px-3 py-1.5 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs">
+                <i class="fas fa-calculator mr-1"></i> Calculate Weekly Pay
+            </button>
+        </form>
+
+        <!-- PRESET LINKS -->
+        <div class="flex items-center space-x-1.5 text-xs font-semibold">
+            <span class="text-slate-400 text-[11px] uppercase mr-1">Presets:</span>
+            <!-- Current Week -->
+            {% set today_d = date.today() if date else none %}
+            <a href="{{ url_for('piece_rate.weekly_salary') }}" 
+               class="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                Default Week
+            </a>
+            <!-- Last 7 Days -->
+            <button type="button" onclick="setLast7Days()" class="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                Past 7 Days
+            </button>
+        </div>
+    </div>
+
+    <!-- WEEKLY KPI STATS STRIP -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <!-- 1. Total Weekly Wages -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Total Weekly Contractor Wages</span>
+                <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-indian-rupee-sign"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-emerald-700 mt-2 font-mono">
+                ₹{{ "{:,.2f}".format(totals.grand_total_wages) }}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1 font-mono">
+                Paid: ₹{{ "{:,.2f}".format(totals.grand_paid) }}
+            </div>
+        </div>
+
+        <!-- 2. Total Pieces Produced in Week -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Payable Pieces This Week</span>
+                <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-cubes"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-slate-900 mt-2 font-mono">
+                {{ "{:,}".format(totals.grand_total_pcs) }}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">
+                Across {{ totals.total_entries_count }} production logs
+            </div>
+        </div>
+
+        <!-- 3. Active Contractors This Week -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Contractors Active</span>
+                <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-users"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-indigo-900 mt-2 font-mono">
+                {{ totals.active_contractors_count }}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1">
+                Workers with recorded output
+            </div>
+        </div>
+
+        <!-- 4. Outstanding Unpaid Balance -->
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold text-slate-500">Outstanding Weekly Payout</span>
+                <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center text-xs">
+                    <i class="fas fa-clock"></i>
+                </span>
+            </div>
+            <div class="text-2xl font-bold text-amber-700 mt-2 font-mono">
+                ₹{{ "{:,.2f}".format(totals.grand_unpaid) }}
+            </div>
+            <div class="text-[11px] text-amber-600 font-medium mt-1">
+                {% if totals.grand_unpaid > 0 %}
+                Ready for weekend batch settlement
+                {% else %}
+                Fully settled for this period
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- WEEKLY CONTRACTOR SALARY REGISTER TABLE -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-sm text-slate-900">Contractor Weekly Payroll Register</h3>
+                <p class="text-xs text-slate-500">{{ week_label }} • Showing {{ workers|length }} contractor workers</p>
+            </div>
+            <a href="{{ url_for('piece_rate.weekly_slips_batch', start=week_start, end=week_end) }}" 
+               target="_blank"
+               class="text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition">
+                <i class="fas fa-print mr-1 text-slate-500"></i> Print All Slips
+            </a>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50/80 border-b border-slate-100 text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4 w-12 text-center">#</th>
+                        <th class="py-3 px-4">Contractor Worker</th>
+                        <th class="py-3 px-4 text-center">Days Worked</th>
+                        <th class="py-3 px-4 text-center">Total Output</th>
+                        <th class="py-3 px-4">Item-Wise Production Breakdown</th>
+                        <th class="py-3 px-4 text-right bg-emerald-50/40 font-bold text-emerald-900">Weekly Wages</th>
+                        <th class="py-3 px-4 text-right">Settled / Unpaid</th>
+                        <th class="py-3 px-4 text-center">Status</th>
+                        <th class="py-3 px-4 text-center w-36">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for w in workers %}
+                    <tr class="hover:bg-slate-50/60 transition">
+                        <td class="py-3 px-4 text-center font-mono text-slate-400 text-[11px]">
+                            {{ loop.index }}
+                        </td>
+
+                        <!-- Contractor Worker Profile -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-emerald-600 to-teal-700 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                                    {{ w.worker_name[:1] }}
+                                </div>
+                                <div>
+                                    <div class="font-bold text-slate-900 flex items-center space-x-1.5">
+                                        <span>{{ w.worker_name }}</span>
+                                        <span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-amber-100 text-amber-800">
+                                            {{ w.worker_code }}
+                                        </span>
+                                    </div>
+                                    <p class="text-[10px] text-slate-400">
+                                        {{ w.department_category }} • <span class="text-slate-600 font-semibold">{{ w.payment_mode }}</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Days Worked -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200"
+                                  title="Dates worked: {{ w.sorted_dates|join(', ') }}">
+                                <i class="fas fa-calendar-check text-[10px] mr-1 text-blue-500"></i>
+                                {{ w.days_worked }} Day{% if w.days_worked != 1 %}s{% endif %}
+                            </span>
+                        </td>
+
+                        <!-- Total Output -->
+                        <td class="py-3 px-4 text-center font-mono font-bold text-slate-800 whitespace-nowrap">
+                            {{ "{:,}".format(w.total_payable_qty) }} <span class="text-[10px] text-slate-400 font-normal">pcs</span>
+                        </td>
+
+                        <!-- Item-Wise Production Breakdown -->
+                        <td class="py-3 px-4">
+                            <div class="flex flex-wrap gap-1.5 max-w-md">
+                                {% for itm in w.items_breakdown %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 border border-slate-200" 
+                                      title="{{ itm.item_name }}: {{ itm.payable_qty }} {{ itm.unit_measure }} @ ₹{{ itm.rate }} = ₹{{ itm.total_amount }}">
+                                    <strong class="text-slate-900 mr-1">{{ itm.item_name }}</strong>:
+                                    <span class="font-mono text-blue-700 mx-1">{{ "{:,}".format(itm.payable_qty) }} {{ itm.unit_measure }}</span>
+                                    <span class="font-mono font-bold text-emerald-700">₹{{ "{:,.0f}".format(itm.total_amount) }}</span>
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+
+                        <!-- Weekly Wages -->
+                        <td class="py-3 px-4 text-right bg-emerald-50/30 whitespace-nowrap font-mono font-bold text-emerald-800 text-sm">
+                            ₹{{ "{:,.2f}".format(w.total_wages) }}
+                        </td>
+
+                        <!-- Settled vs Unpaid -->
+                        <td class="py-3 px-4 text-right whitespace-nowrap font-mono text-[11px]">
+                            <div class="text-emerald-700 font-bold">Paid: ₹{{ "{:,.2f}".format(w.paid_wages) }}</div>
+                            <div class="text-amber-700 font-bold">Due: ₹{{ "{:,.2f}".format(w.unpaid_wages) }}</div>
+                        </td>
+
+                        <!-- Status -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            {% if w.status == 'PAID' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <i class="fas fa-check-circle text-[9px] mr-1 text-emerald-600"></i> SETTLED
+                            </span>
+                            {% elif w.status == 'PARTIAL' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                PARTIAL
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <i class="fas fa-clock text-[9px] mr-1 text-amber-600"></i> UNPAID
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center space-x-1.5">
+                                <!-- Print Individual Weekly Slip -->
+                                <a href="{{ url_for('piece_rate.weekly_slip', worker_id=w.worker_id, start=week_start, end=week_end) }}" 
+                                   target="_blank"
+                                   class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition shadow-2xs"
+                                   title="Print Weekly Contractor Wage Slip">
+                                    <i class="fas fa-print mr-1 text-[10px]"></i> Slip
+                                </a>
+
+                                <!-- Settle Worker -->
+                                {% if w.unpaid_wages > 0 %}
+                                <button type="button" 
+                                        onclick="openSettleWorkerModal('{{ w.worker_id }}', '{{ w.worker_name }}', '{{ w.worker_code }}', '{{ w.unpaid_wages }}', '{{ w.payment_mode }}')"
+                                        class="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition"
+                                        title="Settle this worker's unpaid weekly wages">
+                                    <i class="fas fa-check mr-0.5 text-[10px]"></i> Settle
+                                </button>
+                                {% endif %}
+
+                                <a href="{{ url_for('piece_rate.worker_statement', worker_id=w.worker_id) }}" 
+                                   class="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition" 
+                                   title="Full Lifetime Statement">
+                                    <i class="fas fa-file-lines text-xs"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="py-12 text-center text-slate-400 italic">
+                            <i class="fas fa-calendar-xmark text-3xl mb-2 text-slate-300 block"></i>
+                            No piece-rate production recorded for contractor workers in this week ({{ week_label }}).
+                            <div class="mt-3">
+                                <a href="{{ url_for('piece_rate.index') }}" class="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700">
+                                    <i class="fas fa-plus mr-1"></i> Log Daily Work Qty
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% if workers %}
+                <tfoot>
+                    <tr class="bg-slate-100/90 font-bold border-t-2 border-slate-300 text-slate-900">
+                        <td colspan="3" class="py-3 px-4 uppercase text-[11px] tracking-wider text-right">Weekly Grand Totals:</td>
+                        <td class="py-3 px-4 text-center font-mono text-sm">{{ "{:,}".format(totals.grand_total_pcs) }} pcs</td>
+                        <td class="py-3 px-4 text-xs text-slate-500 font-normal">Across {{ totals.active_contractors_count }} active contractors</td>
+                        <td class="py-3 px-4 text-right font-mono bg-emerald-100/60 text-emerald-950 font-black text-base">
+                            ₹{{ "{:,.2f}".format(totals.grand_total_wages) }}
+                        </td>
+                        <td class="py-3 px-4 text-right font-mono text-xs">
+                            <span class="text-emerald-700">Paid: ₹{{ "{:,.0f}".format(totals.grand_paid) }}</span><br>
+                            <span class="text-amber-800 font-bold">Due: ₹{{ "{:,.0f}".format(totals.grand_unpaid) }}</span>
+                        </td>
+                        <td colspan="2" class="py-3 px-4 text-center text-xs text-slate-500">
+                            {{ totals.active_contractors_count }} Slips Available
+                        </td>
+                    </tr>
+                </tfoot>
+                {% endif %}
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: BATCH SETTLE ALL CONTRACTORS FOR THE WEEK -->
+<!-- ========================================================================= -->
+<div id="settleAllModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-hand-holding-dollar"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Batch Settle All Weekly Contractor Wages</h3>
+                    <p class="text-[11px] text-slate-400">{{ week_label }}</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('settleAllModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('piece_rate.settle_all_week') }}" method="POST" class="p-5 space-y-4">
+            <input type="hidden" name="week_start" value="{{ week_start }}">
+            <input type="hidden" name="week_end" value="{{ week_end }}">
+
+            <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-1">
+                <span class="text-xs text-amber-800 block">Total Outstanding Contractor Wages for This Week</span>
+                <span class="text-2xl font-black font-mono text-amber-950">₹{{ "{:,.2f}".format(totals.grand_unpaid) }}</span>
+                <p class="text-[11px] text-amber-700">Will mark all unpaid entries in this week as settled (PAID)</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                <select name="payment_mode" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                    <option value="CASH">CASH Voucher (Office Cash Payment)</option>
+                    <option value="UPI">UPI Transfer (GooglePay / PhonePe)</option>
+                    <option value="BANK_TRANSFER">Bank Account Transfer</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Batch Settlement Voucher Ref</label>
+                <input type="text" name="payout_reference" placeholder="e.g. WEEKLY-W{{ week_num }}-PAYOUT"
+                       class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('settleAllModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+                    <i class="fas fa-check mr-1.5"></i> Batch Mark as PAID
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: SETTLE SINGLE WORKER -->
+<!-- ========================================================================= -->
+<div id="settleWorkerModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Settle Weekly Wages</h3>
+            <button type="button" onclick="closeModal('settleWorkerModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+        <form id="settleWorkerForm" method="POST" class="p-5 space-y-4">
+            <input type="hidden" name="start_date" value="{{ week_start }}">
+            <input type="hidden" name="end_date" value="{{ week_end }}">
+
+            <div class="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                <p class="text-xs text-slate-600">Settle wages for: <strong id="settleWorkerName" class="text-slate-900"></strong></p>
+                <div class="text-2xl font-black font-mono text-amber-900 mt-1" id="settleWorkerAmount"></div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Payment Method</label>
+                <select name="payment_mode" id="settleWorkerPayMode" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                    <option value="CASH">CASH Voucher</option>
+                    <option value="UPI">UPI Transfer</option>
+                    <option value="BANK_TRANSFER">Bank Transfer</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Voucher Reference</label>
+                <input type="text" name="payout_reference" id="settleWorkerRef"
+                       class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('settleWorkerModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold">Confirm & Pay</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+}
+
+function openSettleAllModal() {
+    openModal('settleAllModal');
+}
+
+function openSettleWorkerModal(workerId, name, code, unpaidAmt, payMode) {
+    document.getElementById('settleWorkerForm').action = "/piece-rate/worker/" + workerId + "/settle-payment";
+    document.getElementById('settleWorkerName').innerText = name + " (" + code + ")";
+    document.getElementById('settleWorkerAmount').innerText = "₹" + parseFloat(unpaidAmt).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('settleWorkerPayMode').value = payMode || 'CASH';
+    document.getElementById('settleWorkerRef').value = "WEEKLY-" + code + "-{{ week_start|replace('-', '') }}";
+    openModal('settleWorkerModal');
+}
+
+function setLast7Days() {
+    const today = new Date();
+    const endStr = today.toISOString().split('T')[0];
+    const past7 = new Date(today);
+    past7.setDate(past7.getDate() - 6);
+    const startStr = past7.toISOString().split('T')[0];
+    window.location.href = "{{ url_for('piece_rate.weekly_salary') }}?start_date=" + startStr + "&end_date=" + endStr;
+}
+</script>
+{% endblock %}

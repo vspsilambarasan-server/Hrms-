@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Shift & OT Payroll HRMS{% endblock %}</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+</head>
+<body class="bg-slate-100 text-slate-800 flex h-screen overflow-hidden antialiased">
+
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between flex-shrink-0 z-20 shadow-xl select-none">
+        <div class="overflow-y-auto">
+            <!-- Company / App Branding -->
+            <div class="h-16 px-6 bg-slate-950 flex items-center justify-between border-b border-slate-800">
+                <div class="flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-lg">
+                        <i class="fas fa-print text-base"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-sm font-bold tracking-wide text-white leading-tight">{{ company_info.company_name }}</h1>
+                        <p class="text-[10px] text-blue-400 uppercase font-semibold tracking-wider">Shift & OT Payroll HRMS</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="mt-4 px-3 space-y-1">
+                <a href="{{ url_for('dashboard.index') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'dashboard.index' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-chart-pie w-5 text-center mr-3 {% if request.endpoint == 'dashboard.index' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Dashboard</span>
+                </a>
+
+                <a href="{{ url_for('employees.list_employees') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint in ('employees.list_employees', 'employees.view_employee') %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-users-gear w-5 text-center mr-3 {% if request.endpoint in ('employees.list_employees', 'employees.view_employee') %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Employees & Rates</span>
+                </a>
+
+                <a href="{{ url_for('employees.separated_employees') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'employees.separated_employees' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-user-slash w-5 text-center mr-3 {% if request.endpoint == 'employees.separated_employees' %}text-white{% else %}text-slate-400 group-hover:text-rose-400{% endif %}"></i>
+                    <span>Exits & Disciplinary Log</span>
+                </a>
+
+                <div class="pt-3 pb-1 px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Shift Operations</div>
+
+                <a href="{{ url_for('shifts.list_shifts') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'shifts.list_shifts' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-clock w-5 text-center mr-3 {% if request.endpoint == 'shifts.list_shifts' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Shift Definitions</span>
+                </a>
+
+                <a href="{{ url_for('shifts.duty_intervals_view') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'shifts.duty_intervals_view' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-table-list w-5 text-center mr-3 {% if request.endpoint == 'shifts.duty_intervals_view' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Duty & Break Intervals</span>
+                </a>
+
+                <a href="{{ url_for('attendance.index') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint in ('attendance.index', 'attendance.all_punches') %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-fingerprint w-5 text-center mr-3 {% if request.endpoint in ('attendance.index', 'attendance.all_punches') %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Daily Attendance</span>
+                </a>
+
+                <div class="pt-3 pb-1 px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Payroll & Approvals</div>
+
+                <a href="{{ url_for('overtime.list_overtime') }}" 
+                   class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.blueprint == 'overtime' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <div class="flex items-center">
+                        <i class="fas fa-hourglass-half w-5 text-center mr-3 {% if request.blueprint == 'overtime' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                        <span>Overtime (OT)</span>
+                    </div>
+                    {% if global_pending_ot > 0 %}
+                    <span class="px-2 py-0.5 text-xs font-bold rounded-full bg-amber-500 text-slate-950 animate-pulse">
+                        {{ global_pending_ot }}
+                    </span>
+                    {% endif %}
+                </a>
+
+                <a href="{{ url_for('payroll.index') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint in ('payroll.index', 'payroll.view_run', 'payroll.view_payslip') %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-file-invoice-dollar w-5 text-center mr-3 {% if request.endpoint in ('payroll.index', 'payroll.view_run', 'payroll.view_payslip') %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Payroll Runs</span>
+                </a>
+
+                <a href="{{ url_for('payroll.advances_portal') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'payroll.advances_portal' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-hand-holding-dollar w-5 text-center mr-3 {% if request.endpoint == 'payroll.advances_portal' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Salary Advances</span>
+                </a>
+
+                <a href="{{ url_for('settlement.index') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.blueprint == 'settlement' %}bg-amber-600 text-white shadow-md shadow-amber-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-shield-halved w-5 text-center mr-3 {% if request.blueprint == 'settlement' %}text-white{% else %}text-slate-400 group-hover:text-amber-400{% endif %}"></i>
+                    <span>Diwali Bonus & Settlement</span>
+                </a>
+
+                <div class="pt-3 pb-1 px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Contract & Piece-Rate</div>
+
+                <a href="{{ url_for('piece_rate.index') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'piece_rate.index' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-cubes-stacked w-5 text-center mr-3 {% if request.endpoint == 'piece_rate.index' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Qty Tracker (Item-Wise)</span>
+                </a>
+
+                <a href="{{ url_for('piece_rate.weekly_salary') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint in ('piece_rate.weekly_salary', 'piece_rate.weekly_slip', 'piece_rate.weekly_slips_batch') %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-calendar-week w-5 text-center mr-3 {% if request.endpoint in ('piece_rate.weekly_salary', 'piece_rate.weekly_slip', 'piece_rate.weekly_slips_batch') %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Weekly Salary</span>
+                </a>
+
+                <a href="{{ url_for('piece_rate.list_workers') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint in ('piece_rate.list_workers', 'piece_rate.worker_statement') %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-id-card-clip w-5 text-center mr-3 {% if request.endpoint in ('piece_rate.list_workers', 'piece_rate.worker_statement') %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Contract Workers</span>
+                </a>
+
+                <a href="{{ url_for('piece_rate.list_items') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.endpoint == 'piece_rate.list_items' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-tags w-5 text-center mr-3 {% if request.endpoint == 'piece_rate.list_items' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Item Rate Master</span>
+                </a>
+
+                <div class="pt-3 pb-1 px-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider">Administration</div>
+
+                <a href="{{ url_for('settings.company_profile') }}" 
+                   class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-all group {% if request.blueprint == 'settings' %}bg-blue-600 text-white shadow-md shadow-blue-600/30{% else %}hover:bg-slate-800 hover:text-white text-slate-400{% endif %}">
+                    <i class="fas fa-building w-5 text-center mr-3 {% if request.blueprint == 'settings' %}text-white{% else %}text-slate-400 group-hover:text-blue-400{% endif %}"></i>
+                    <span>Company Profile & Alerts</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Sidebar Footer & Logged-In User Profile -->
+        <div class="p-3.5 border-t border-slate-800 bg-slate-950 flex flex-col space-y-2.5">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2.5 overflow-hidden">
+                    <div class="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                        {{ (current_user.full_name[0] if current_user and current_user.full_name else 'A')|upper }}
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-xs font-bold text-white truncate leading-tight">{{ current_user.full_name if current_user else 'HR Administrator' }}</p>
+                        <p class="text-[10px] text-slate-400 truncate">{{ current_user.role|capitalize if current_user else 'Admin' }} • {{ company_info.company_name }}</p>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('auth.logout') }}" title="Sign Out of HRMS" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition">
+                    <i class="fas fa-arrow-right-from-bracket text-xs"></i>
+                </a>
+            </div>
+
+            <!-- Database Clean Option -->
+            <form action="{{ url_for('api.clear_data_endpoint') }}" method="POST" onsubmit="return confirm('WARNING: Are you sure you want to completely clear all attendance and payroll logs?');">
+                <button type="submit" class="w-full py-1 px-2 rounded bg-slate-900 hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 text-[10px] font-semibold border border-slate-800 transition text-left flex items-center justify-between" title="Clear logs">
+                    <span><i class="fas fa-trash-can mr-1 text-slate-500"></i> Clear System Logs</span>
+                    <i class="fas fa-chevron-right text-[8px] text-slate-600"></i>
+                </button>
+            </form>
+        </div>
+    </aside>
+
+
+    <!-- MAIN WRAPPER -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden main-content">
+
+        <!-- TOP BAR -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-10 select-none shadow-sm flex-shrink-0">
+            <div class="flex items-center space-x-4">
+                <h2 class="text-base font-bold text-slate-800 tracking-tight">
+                    {% block header_title %}Overview{% endblock %}
+                </h2>
+                <div class="hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                    <span>Shift Engine Active</span>
+                </div>
+                <a href="{{ url_for('attendance.index') }}" 
+                   title="Biometric Auto-Sync every 1 minute from ZKTeco terminal ({{ auto_sync_status.device_ip }})"
+                   class="hidden md:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium {% if auto_sync_status.enabled %}bg-emerald-50 text-emerald-700 border border-emerald-200{% else %}bg-amber-50 text-amber-700 border border-amber-200{% endif %} transition hover:opacity-80">
+                    <span class="w-2 h-2 rounded-full {% if auto_sync_status.enabled %}bg-emerald-500 animate-pulse{% else %}bg-amber-400{% endif %} mr-1.5"></span>
+                    <span>Auto-Sync: {% if auto_sync_status.enabled %}1m Active{% else %}Paused{% endif %}</span>
+                </a>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <!-- Clock Widget -->
+                <div class="flex items-center space-x-2 text-xs font-mono font-semibold bg-slate-900 text-slate-100 px-3 py-1.5 rounded-lg shadow-inner">
+                    <i class="far fa-clock text-blue-400"></i>
+                    <span id="liveClock">--:--:--</span>
+                </div>
+
+                <!-- Currency badge -->
+                <span class="hidden md:inline-block px-2 py-1 text-xs font-semibold bg-slate-100 text-slate-700 rounded border border-slate-200">
+                    Currency: <span class="font-bold text-blue-600">{{ company_info.currency_symbol }}</span>
+                </span>
+            </div>
+        </header>
+
+        <!-- FLASH NOTIFICATIONS -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="px-6 pt-4 flash-container">
+            {% for category, message in messages %}
+            <div class="p-3.5 mb-3 rounded-lg flex items-center justify-between text-sm shadow-sm transition-all
+                        {% if category == 'success' %}bg-emerald-50 text-emerald-800 border border-emerald-200
+                        {% elif category == 'danger' %}bg-rose-50 text-rose-800 border border-rose-200
+                        {% elif category == 'warning' %}bg-amber-50 text-amber-800 border border-amber-200
+                        {% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+                <div class="flex items-center">
+                    <i class="fas {% if category == 'success' %}fa-check-circle text-emerald-500{% elif category == 'danger' %}fa-circle-xmark text-rose-500{% elif category == 'warning' %}fa-triangle-exclamation text-amber-500{% else %}fa-info-circle text-blue-500{% endif %} mr-2.5 text-base"></i>
+                    <span>{{ message }}</span>
+                </div>
+                <button type="button" onclick="this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 text-sm ml-4">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <!-- VIEW BODY -->
+        <main class="flex-1 overflow-y-auto p-6 bg-slate-50">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- MAIN JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,103 @@
+/* Custom styles for Shift & OT Payroll HRMS */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.font-mono {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Modal animation */
+.modal-backdrop {
+    background-color: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(3px);
+}
+
+/* Print Styles for Payslips & Reports */
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 8mm 10mm;
+    }
+
+    /* Hide all web chrome & screen controls */
+    aside, header, nav, .no-print, button, .btn, .flash-container, #adjustSlipModal {
+        display: none !important;
+    }
+
+    html, body {
+        height: auto !important;
+        min-height: 100% !important;
+        overflow: visible !important;
+        display: block !important;
+        background: white !important;
+        color: #0f172a !important;
+        font-size: 10.5pt;
+        padding: 0 !important;
+        margin: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .main-content, main {
+        margin-left: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+        overflow: visible !important;
+        display: block !important;
+        background: white !important;
+    }
+
+    .print-card {
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+        margin: 0 auto !important;
+        padding: 1.25rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* Batch printing: each payslip on its own fresh A4 sheet */
+    .payslip-page {
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+        display: block !important;
+        width: 100% !important;
+        margin-bottom: 0 !important;
+        padding: 0 !important;
+    }
+
+    .payslip-page:last-child {
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+
+    .badge {
+        border: 1px solid #94a3b8 !important;
+        color: #0f172a !important;
+    }
+}

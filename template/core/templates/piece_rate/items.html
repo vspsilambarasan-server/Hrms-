@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Piece-Rate Items & Rates Master | Vasantham Printers{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- PAGE HEADER -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-600/20">
+                <i class="fas fa-tags text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2.5">
+                    <h1 class="text-xl font-bold text-slate-900">Piece-Rate Items & Rates Master</h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                        {{ items|length }} Items Configured
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Configure standard piece rates per unit for books, boxes, foldings, bindings, and packagings.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button type="button" 
+                    onclick="openAddItemModal()"
+                    class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-plus mr-1.5"></i> Add Piece-Rate Item
+            </button>
+            <a href="{{ url_for('piece_rate.index') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-cubes-stacked mr-1.5 text-slate-500"></i> Qty Tracker
+            </a>
+            <a href="{{ url_for('piece_rate.list_workers') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-id-card-clip mr-1.5 text-slate-500"></i> Contract Workers
+            </a>
+        </div>
+    </div>
+
+    <!-- ITEMS TABLE -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50/80 border-b border-slate-100 text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4 w-12 text-center">#</th>
+                        <th class="py-3 px-4">Item Code</th>
+                        <th class="py-3 px-4">Item Name / Work Process</th>
+                        <th class="py-3 px-4">Category</th>
+                        <th class="py-3 px-4 text-center">Unit of Measure</th>
+                        <th class="py-3 px-4 text-right bg-emerald-50/40 font-bold text-emerald-900">Standard Piece Rate</th>
+                        <th class="py-3 px-4 text-center">Total Produced</th>
+                        <th class="py-3 px-4 text-right">Total Contractor Payout</th>
+                        <th class="py-3 px-4 text-center">Status</th>
+                        <th class="py-3 px-4 text-center w-20">Edit</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for item in items %}
+                    <tr class="hover:bg-slate-50/60 transition">
+                        <td class="py-3 px-4 text-center font-mono text-slate-400 text-[11px]">
+                            {{ loop.index }}
+                        </td>
+
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200 text-xs">
+                                {{ item.item_code }}
+                            </span>
+                        </td>
+
+                        <td class="py-3 px-4">
+                            <span class="font-bold text-slate-900 block text-xs">{{ item.item_name }}</span>
+                            <span class="text-[11px] text-slate-400">{{ item.jobs_logged_count }} logged work batches</span>
+                        </td>
+
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                {{ item.category }}
+                            </span>
+                        </td>
+
+                        <td class="py-3 px-4 text-center whitespace-nowrap font-mono font-semibold text-slate-700">
+                            {{ item.unit_measure }}
+                        </td>
+
+                        <td class="py-3 px-4 text-right bg-emerald-50/30 whitespace-nowrap font-mono font-bold text-emerald-800 text-sm">
+                            ₹{{ "{:,.2f}".format(item.default_rate) }} <span class="text-[10px] text-slate-400 font-normal">/ {{ item.unit_measure }}</span>
+                        </td>
+
+                        <td class="py-3 px-4 text-center font-mono font-bold text-slate-700 whitespace-nowrap">
+                            {{ "{:,}".format(item.total_produced_qty) }}
+                        </td>
+
+                        <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                            ₹{{ "{:,.2f}".format(item.total_payout_amount) }}
+                        </td>
+
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            {% if item.is_active == 1 %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                Active
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                                Inactive
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <button type="button" 
+                                    onclick="openEditItemModal('{{ item.id }}', '{{ item.item_code }}', '{{ item.item_name }}', '{{ item.category }}', '{{ item.unit_measure }}', '{{ item.default_rate }}', '{{ item.is_active }}')"
+                                    class="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                                    title="Edit Item & Rate">
+                                <i class="fas fa-pencil text-xs"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="py-12 text-center text-slate-400 italic">
+                            No piece-rate items found.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: ADD PIECE-RATE ITEM -->
+<!-- ========================================================================= -->
+<div id="addItemModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-tag"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Add Piece-Rate Item</h3>
+                    <p class="text-[11px] text-slate-400">Configure standard piece rate for printing press task</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('addItemModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('piece_rate.create_item') }}" method="POST" class="p-5 space-y-4">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Item Code <span class="text-rose-500">*</span></label>
+                    <input type="text" name="item_code" value="{{ next_code }}" required
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Category <span class="text-rose-500">*</span></label>
+                    <select name="category" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                        <option value="Binding">Binding</option>
+                        <option value="Pasting">Pasting</option>
+                        <option value="Folding">Folding</option>
+                        <option value="Finishing">Finishing</option>
+                        <option value="Packaging">Packaging</option>
+                        <option value="General">General</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Item Name / Work Process <span class="text-rose-500">*</span></label>
+                <input type="text" name="item_name" required placeholder="e.g. Spiral Binding Desk Calendar"
+                       class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Unit of Measure <span class="text-rose-500">*</span></label>
+                    <input type="text" name="unit_measure" value="Pcs" required placeholder="e.g. Pcs, Books, Boxes, 1000 Pcs"
+                           class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Default Rate per Unit (₹) <span class="text-rose-500">*</span></label>
+                    <input type="number" name="default_rate" step="0.01" min="0" required placeholder="0.00"
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('addItemModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+                    <i class="fas fa-check mr-1.5"></i> Save Item
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT PIECE-RATE ITEM -->
+<!-- ========================================================================= -->
+<div id="editItemModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Edit Piece-Rate Item</h3>
+            <button type="button" onclick="closeModal('editItemModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="editItemForm" method="POST" class="p-5 space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Item Code</label>
+                    <input type="text" id="editItemCode" disabled class="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-100 border border-slate-300 rounded-lg text-slate-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Category</label>
+                    <input type="text" name="category" id="editItemCategory" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Item Name</label>
+                <input type="text" name="item_name" id="editItemName" required class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Unit of Measure</label>
+                    <input type="text" name="unit_measure" id="editItemUnit" required class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Default Rate (₹)</label>
+                    <input type="number" name="default_rate" id="editItemRate" step="0.01" min="0" required class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Status</label>
+                <select name="is_active" id="editItemIsActive" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg font-bold">
+                    <option value="1">Active</option>
+                    <option value="0">Inactive</option>
+                </select>
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('editItemModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+}
+
+function openAddItemModal() {
+    openModal('addItemModal');
+}
+
+function openEditItemModal(id, code, name, category, unit, rate, isActive) {
+    document.getElementById('editItemForm').action = "/piece-rate/items/edit/" + id;
+    document.getElementById('editItemCode').value = code;
+    document.getElementById('editItemName').value = name;
+    document.getElementById('editItemCategory').value = category;
+    document.getElementById('editItemUnit').value = unit;
+    document.getElementById('editItemRate').value = parseFloat(rate).toFixed(2);
+    document.getElementById('editItemIsActive').value = isActive;
+    openModal('editItemModal');
+}
+</script>
+{% endblock %}

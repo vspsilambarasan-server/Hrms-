@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Salary Advances & Weekly Deductions | ApexHRMS{% endblock %}
+{% block header_title %}Salary Advances & Weekly Installment Deductions{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- KPI STATS -->
+    <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Advances</span>
+            <span class="text-2xl font-black text-slate-800 mt-1 block">{{ stats.active_count }}</span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Staff currently repaying</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total Disbursed</span>
+            <span class="text-2xl font-black text-blue-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.total_disbursed) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">All-time loans issued</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Total Recovered</span>
+            <span class="text-2xl font-black text-emerald-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.total_recovered) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Via weekly cuts & cash</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Outstanding Balance</span>
+            <span class="text-2xl font-black text-rose-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.total_outstanding) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Pending recovery</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div>
+                <span class="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Weekly Cuts Due</span>
+                <span class="text-2xl font-black text-purple-700 mt-1 block">
+                    {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.weekly_cuts_due) }}
+                </span>
+            </div>
+            <button onclick="openModal('issueAdvanceModal')" class="mt-2 w-full inline-flex items-center justify-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                <i class="fas fa-plus mr-1.5 text-[10px]"></i> Issue Advance
+            </button>
+        </div>
+    </div>
+
+    <!-- FILTER TABS & ADVANCES TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h3 class="font-bold text-sm text-slate-800">Employee Salary Advances Registry</h3>
+                <p class="text-xs text-slate-500">Weekly deductions are automatically cut from weekly payroll cycles until fully recovered.</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg text-xs">
+                <a href="{{ url_for('payroll.advances_portal', status='ACTIVE') }}" 
+                   class="px-3 py-1 rounded-md font-semibold transition {% if active_status == 'ACTIVE' %}bg-white text-slate-900 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                    Active Advances
+                </a>
+                <a href="{{ url_for('payroll.advances_portal', status='COMPLETED') }}" 
+                   class="px-3 py-1 rounded-md font-semibold transition {% if active_status == 'COMPLETED' %}bg-white text-slate-900 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                    Fully Settled
+                </a>
+                <a href="{{ url_for('payroll.advances_portal', status='ALL') }}" 
+                   class="px-3 py-1 rounded-md font-semibold transition {% if active_status == 'ALL' %}bg-white text-slate-900 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                    All
+                </a>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Employee</th>
+                        <th class="py-3 px-3">Date Given</th>
+                        <th class="py-3 px-3 text-right">Advance Amount</th>
+                        <th class="py-3 px-3 text-right">Weekly Deduction</th>
+                        <th class="py-3 px-4 text-center">Repayment Progress</th>
+                        <th class="py-3 px-3 text-right">Balance Due</th>
+                        <th class="py-3 px-3 text-center">Status</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for adv in advances %}
+                    {% set pct = (adv.amount_repaid / adv.total_amount * 100) if adv.total_amount > 0 else 0 %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">
+                                    {{ adv.first_name[0] }}{{ adv.last_name[0] }}
+                                </div>
+                                <div>
+                                    <span class="font-bold text-slate-800 block text-sm">{{ adv.first_name }} {{ adv.last_name }}</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="font-mono text-[10px] text-blue-600 font-semibold">{{ adv.emp_no }}</span>
+                                        <span class="text-[10px] text-slate-400">• {{ adv.dept_name }}</span>
+                                        {% if adv.pay_frequency == 'WEEKLY' %}
+                                        <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">WEEKLY</span>
+                                        {% else %}
+                                        <span class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600">MONTHLY</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-3 font-mono text-slate-600">
+                            {{ adv.advance_date }}
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-bold text-slate-800 text-sm">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(adv.total_amount) }}
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-semibold text-purple-700">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(adv.weekly_deduction) }}<span class="text-[10px] text-slate-400 font-normal">/wk</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <div class="w-36 mx-auto">
+                                <div class="flex justify-between text-[10px] font-semibold text-slate-600 mb-1">
+                                    <span>{{ company_info.currency_symbol }}{{ "%.0f"|format(adv.amount_repaid) }}</span>
+                                    <span class="text-slate-400">{{ "%.0f"|format(pct) }}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-emerald-500 h-2 rounded-full transition-all" style="width: {{ pct }}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-bold text-rose-600 text-sm">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(adv.remaining_amount) }}
+                        </td>
+                        <td class="py-3.5 px-3 text-center">
+                            {% if adv.status == 'ACTIVE' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">ACTIVE</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">SETTLED</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-right space-x-1">
+                            {% if adv.status == 'ACTIVE' %}
+                            <button onclick="openSettleModal({{ adv.id }}, '{{ adv.first_name }} {{ adv.last_name }}', {{ adv.remaining_amount }})" class="inline-flex items-center px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-xs font-semibold transition" title="Log direct cash payment">
+                                <i class="fas fa-money-bill-wave mr-1 text-[10px]"></i> Cash Pay
+                            </button>
+                            {% endif %}
+                            <form action="{{ url_for('payroll.delete_advance', adv_id=adv.id) }}" method="POST" class="inline" onsubmit="return confirm('Delete this advance record?');">
+                                <button type="submit" class="p-1.5 text-slate-400 hover:text-rose-600 transition" title="Delete record">
+                                    <i class="fas fa-trash-alt text-xs"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-10 text-slate-400 italic">
+                            No salary advances found under "{{ active_status }}". Click "Issue Advance" to grant a salary loan.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- RECENT REPAYMENTS AUDIT LEDGER -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <h4 class="font-bold text-sm text-slate-800 mb-1">Recent Repayment Transactions Ledger</h4>
+        <p class="text-xs text-slate-500 mb-4">Chronological log of weekly payroll deductions and cash repayments applied against employee advances.</p>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-2.5 px-3">Date</th>
+                        <th class="py-2.5 px-3">Employee</th>
+                        <th class="py-2.5 px-3">Type</th>
+                        <th class="py-2.5 px-3 text-right">Amount Recovered</th>
+                        <th class="py-2.5 px-3">Notes</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for rep in recent_repayments %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 px-3 font-mono text-slate-600">{{ rep.repayment_date }}</td>
+                        <td class="py-2.5 px-3 font-semibold text-slate-800">
+                            {{ rep.first_name }} {{ rep.last_name }} <span class="text-[10px] text-slate-400 font-mono">({{ rep.emp_no }})</span>
+                        </td>
+                        <td class="py-2.5 px-3">
+                            {% if rep.payment_type == 'PAYROLL_CUT' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                <i class="fas fa-calendar-check mr-1 text-[8px]"></i> Weekly Payroll Cut
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <i class="fas fa-hand-holding-dollar mr-1 text-[8px]"></i> Cash Direct
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-700">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(rep.amount) }}
+                        </td>
+                        <td class="py-2.5 px-3 text-slate-500 italic">{{ rep.notes or "Regular deduction" }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-6 text-slate-400 italic">No repayments recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ISSUE ADVANCE MODAL -->
+<div id="issueAdvanceModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-hand-holding-dollar text-blue-400"></i>
+                <h3 class="font-bold text-sm">Issue Salary Advance to Employee</h3>
+            </div>
+            <button onclick="closeModal('issueAdvanceModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('payroll.add_advance') }}" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Select Employee *</label>
+                <select name="employee_id" required class="w-full text-xs rounded-lg border-slate-300 py-2.5 px-3">
+                    <option value="">-- Choose Employee --</option>
+                    {% for emp in employees %}
+                    <option value="{{ emp.id }}">
+                        {{ emp.emp_no }} - {{ emp.first_name }} {{ emp.last_name }} ({{ emp.designation }} • {{ emp.pay_frequency }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Advance Date *</label>
+                    <input type="date" name="advance_date" value="{{ today_date }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Total Advance Amount ({{ company_info.currency_symbol }}) *</label>
+                    <input type="number" step="0.01" name="total_amount" id="advTotal" placeholder="5000.00" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold" oninput="updateDurationCalc()">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Weekly Cut Amount ({{ company_info.currency_symbol }}) *</label>
+                    <input type="number" step="0.01" name="weekly_deduction" id="advWeeklyCut" placeholder="1000.00" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-purple-700" oninput="updateDurationCalc()">
+                </div>
+                <div class="flex items-end">
+                    <div class="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs w-full text-slate-600">
+                        <span class="text-[10px] text-slate-400 block uppercase font-bold">Estimated Recovery:</span>
+                        <span id="advRecoveryEst" class="font-bold text-slate-800">Enter amounts</span>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Reason / Notes</label>
+                <input type="text" name="notes" placeholder="e.g. Festival Advance, Medical emergency, Home repair" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="p-3 bg-purple-50 rounded-lg border border-purple-200 text-xs text-purple-900 space-y-1">
+                <p class="font-bold"><i class="fas fa-circle-info mr-1"></i> Automatic Weekly Cut Guarantee:</p>
+                <p>When running weekly payroll, the specified weekly deduction will automatically be deducted from the employee's net earnings until the remaining loan balance reaches ₹0.00.</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('issueAdvanceModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Record Advance
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- CASH DIRECT SETTLEMENT MODAL -->
+<div id="settleCashModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Direct Cash Repayment</h3>
+            <button onclick="closeModal('settleCashModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form id="settleCashForm" method="POST" class="p-5 space-y-4">
+            <div>
+                <span class="text-xs text-slate-500 block">Employee:</span>
+                <span id="settleEmpName" class="font-bold text-sm text-slate-800 block"></span>
+                <span class="text-xs text-rose-600 font-bold block mt-1">Outstanding Balance: <span id="settleBalance" class="font-mono"></span></span>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Repayment Amount ({{ company_info.currency_symbol }}) *</label>
+                <input type="number" step="0.01" name="amount" id="settleAmountInput" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold text-emerald-700">
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Notes</label>
+                <input type="text" name="notes" value="Cash received directly at office" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('settleCashModal')" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm">
+                    Record Payment
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function updateDurationCalc() {
+    const total = parseFloat(document.getElementById('advTotal').value) || 0;
+    const cut = parseFloat(document.getElementById('advWeeklyCut').value) || 0;
+    const display = document.getElementById('advRecoveryEst');
+    if (total > 0 && cut > 0) {
+        const weeks = Math.ceil(total / cut);
+        display.innerHTML = `<span class="text-purple-700">${weeks} weeks</span> (${weeks * 7} days)`;
+    } else {
+        display.innerText = 'Enter amounts';
+    }
+}
+
+function openSettleModal(advId, empName, remaining) {
+    document.getElementById('settleEmpName').innerText = empName;
+    document.getElementById('settleBalance').innerText = '{{ company_info.currency_symbol }}' + remaining.toFixed(2);
+    document.getElementById('settleAmountInput').value = remaining.toFixed(2);
+    document.getElementById('settleAmountInput').max = remaining;
+    document.getElementById('settleCashForm').action = '/payroll/advances/' + advId + '/settle-cash';
+    openModal('settleCashModal');
+}
+</script>
+{% endblock %}

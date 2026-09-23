@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Full & Final Settlement Voucher - {{ s.emp_no }} | {{ company.company_name }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            @page { size: A4 portrait; margin: 12mm; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 p-6 text-slate-800 font-sans">
+    <div class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow border border-slate-200 print:shadow-none print:border-none">
+        
+        <!-- TOOLBAR -->
+        <div class="no-print flex justify-between items-center mb-6 pb-4 border-b border-slate-200">
+            <a href="{{ url_for('settlement.final_settlement') }}" class="text-xs font-bold text-slate-600 hover:text-slate-900">
+                &larr; Back to Settlements
+            </a>
+            <button onclick="window.print()" class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg shadow hover:bg-blue-700">
+                Print Settlement Voucher
+            </button>
+        </div>
+
+        <!-- HEADER -->
+        <div class="border-b-2 border-slate-900 pb-4 flex justify-between items-start">
+            <div>
+                <h1 class="text-xl font-black uppercase text-slate-900">{{ company.company_name }}</h1>
+                {% if company.address %}
+                <p class="text-xs text-slate-600 font-medium">{{ company.address }}</p>
+                {% endif %}
+                <div class="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-500 font-mono mt-0.5">
+                    {% if company.phone %}<span>Tel: {{ company.phone }}</span>{% endif %}
+                    {% if company.email %}<span>• {{ company.email }}</span>{% endif %}
+                    {% if company.gstin %}<span>• GSTIN: {{ company.gstin }}</span>{% endif %}
+                    {% if company.factory_license_no %}<span>• Lic: {{ company.factory_license_no }}</span>{% endif %}
+                </div>
+            </div>
+            <div class="text-right">
+                <span class="px-3 py-1 bg-slate-900 text-white font-extrabold uppercase text-xs rounded">
+                    Full & Final Settlement
+                </span>
+                <p class="text-xs font-bold text-slate-700 mt-2">Voucher # FNF-{{ s.id }}-{{ s.emp_no }}</p>
+                <p class="text-[11px] text-slate-500 font-mono">Date: {{ s.settlement_date }}</p>
+            </div>
+        </div>
+
+        <!-- WORKER DETAILS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 border-b border-slate-200 text-xs">
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Employee Name</span>
+                <span class="font-bold text-slate-900">{{ s.first_name }} {{ s.last_name }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Employee Code</span>
+                <span class="font-mono font-bold text-blue-700">{{ s.emp_no }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Designation</span>
+                <span class="font-semibold text-slate-800">{{ s.designation }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Department</span>
+                <span class="font-semibold text-slate-800">{{ s.dept_name }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Date of Joining</span>
+                <span class="font-mono text-slate-700">{{ s.join_date }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Tenure of Service</span>
+                <span class="font-semibold text-slate-700">{{ "%.1f"|format(s.service_years) }} Years</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Last Drawn Shift Rate</span>
+                <span class="font-mono font-bold text-slate-700">₹{{ "%.2f"|format(s.last_drawn_wage) }}</span>
+            </div>
+            <div>
+                <span class="text-[10px] text-slate-400 uppercase font-bold block">Settlement Status</span>
+                <span class="font-bold text-emerald-700">DISBURSED & CLOSED</span>
+            </div>
+        </div>
+
+        <!-- SETTLEMENT CALCULATIONS TABLE -->
+        <div class="my-6">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Statutory Settlement Breakdown</h4>
+            <table class="w-full text-xs border border-slate-200 divide-y divide-slate-200">
+                <thead class="bg-slate-50 uppercase text-slate-600 font-bold text-[10px]">
+                    <tr>
+                        <th class="py-2.5 px-4 text-left">Component Particulars</th>
+                        <th class="py-2.5 px-4 text-right">Payable (₹)</th>
+                        <th class="py-2.5 px-4 text-right">Deduction (₹)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <tr>
+                        <td class="py-2.5 px-4">
+                            <strong>Gratuity under Payment of Gratuity Act, 1972</strong>
+                            <p class="text-[10px] text-slate-400">15 days wages per completed year of continuous service</p>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-mono font-bold text-blue-700">₹{{ "%.2f"|format(s.gratuity_amount) }}</td>
+                        <td class="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2.5 px-4">
+                            <strong>Leave Encashment ({{ s.leave_encashment_days }} Days Accumulated)</strong>
+                            <p class="text-[10px] text-slate-400">Earned leave credit paid at last drawn daily wage</p>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-mono font-bold text-emerald-700">₹{{ "%.2f"|format(s.leave_encashment_amount) }}</td>
+                        <td class="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2.5 px-4">
+                            <strong>Unpaid Arrears & Shift Attendance Wages</strong>
+                            <p class="text-[10px] text-slate-400">Duty shifts & approved overtime prior to departure</p>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-mono font-bold text-slate-800">₹{{ "%.2f"|format(s.unpaid_wages) }}</td>
+                        <td class="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                    </tr>
+                    <tr>
+                        <td class="py-2.5 px-4 text-rose-700">
+                            <strong>Salary Advance Recovery (Loan Clearance)</strong>
+                            <p class="text-[10px] text-slate-400">Full recovery of pending salary loan balance</p>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-mono text-slate-400">-</td>
+                        <td class="py-2.5 px-4 text-right font-mono font-bold text-rose-600">-₹{{ "%.2f"|format(s.advance_recovery) }}</td>
+                    </tr>
+                </tbody>
+                <tfoot class="bg-slate-900 text-white font-bold">
+                    <tr>
+                        <td class="py-3 px-4 uppercase text-xs">Total Net Disbursed Amount</td>
+                        <td colspan="2" class="py-3 px-4 text-right font-mono text-emerald-400 text-lg">
+                            ₹{{ "%.2f"|format(s.net_settlement_amount) }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- CLEARANCE CERTIFICATE DECLARATION -->
+        <div class="p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-2 text-slate-600">
+            <h5 class="font-bold text-slate-800 uppercase text-[10px]">No Dues & Final Clearance Declaration</h5>
+            <p>
+                I, <strong>{{ s.first_name }} {{ s.last_name }}</strong> (Emp Code: <strong>{{ s.emp_no }}</strong>), hereby acknowledge receipt of ₹<strong>{{ "%.2f"|format(s.net_settlement_amount) }}</strong> towards full and final settlement of all my statutory dues, gratuity, leave encashment, and wages from <strong>{{ company.company_name }}</strong>. I confirm that I have no further claims whatsoever against the management.
+            </p>
+            <p class="text-[10px] text-slate-400 font-mono">Payment Mode: {{ s.payout_reference or 'NEFT / Bank Transfer' }} • Remarks: {{ s.remarks or 'Clearance Completed' }}</p>
+        </div>
+
+        <!-- SIGNATURES -->
+        <div class="pt-12 mt-8 flex justify-between text-xs text-slate-700">
+            <div class="text-center w-52">
+                <div class="border-b border-slate-400 mb-1"></div>
+                <p class="font-bold">Employee Signature</p>
+                <p class="text-[10px] text-slate-500">Acknowledged & Accepted</p>
+            </div>
+            <div class="text-center w-52">
+                <div class="border-b border-slate-400 mb-1"></div>
+                <p class="font-bold">{{ s.approved_by or company.supervisor_name or 'Factory Manager' }}</p>
+                <p class="text-[10px] text-slate-500">Authorized Signatory • {{ company.company_name }}</p>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>

@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block title %}Contract Workers Registration & Directory | Vasantham Printers{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- PAGE HEADER -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-600/20">
+                <i class="fas fa-id-card-clip text-xl"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2.5">
+                    <h1 class="text-xl font-bold text-slate-900">Contract Workers Registration & Directory</h1>
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                        {{ workers|length }} Registered Workers
+                    </span>
+                </div>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Register piece-rate workers, track production units, and generate item-wise wage payout slips.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <button type="button" 
+                    onclick="openRegisterWorkerModal()"
+                    class="inline-flex items-center px-4 py-2 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer">
+                <i class="fas fa-user-plus mr-1.5"></i> Register Contract Worker
+            </button>
+            <a href="{{ url_for('piece_rate.index') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-cubes-stacked mr-1.5 text-slate-500"></i> Qty Tracker
+            </a>
+            <a href="{{ url_for('piece_rate.list_items') }}" 
+               class="inline-flex items-center px-3.5 py-2 rounded-xl font-semibold text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fas fa-tags mr-1.5 text-slate-500"></i> Item Rates
+            </a>
+        </div>
+    </div>
+
+    <!-- FILTER & SEARCH BAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <form method="GET" action="{{ url_for('piece_rate.list_workers') }}" class="flex flex-wrap items-center gap-3">
+            <div class="flex-1 min-w-[200px]">
+                <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                    <input type="text" name="q" value="{{ search_query }}" placeholder="Search by worker code, name, phone..."
+                           class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+            </div>
+
+            <div>
+                <select name="category" class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="">All Trade Categories</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}" {% if selected_category == cat %}selected{% endif %}>{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <select name="status" class="px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                    <option value="">All Statuses</option>
+                    <option value="ACTIVE" {% if selected_status == 'ACTIVE' %}selected{% endif %}>Active Only</option>
+                    <option value="INACTIVE" {% if selected_status == 'INACTIVE' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+
+            <button type="submit" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-xs">
+                Filter
+            </button>
+        </form>
+    </div>
+
+    <!-- WORKERS DIRECTORY TABLE -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50/80 border-b border-slate-100 text-slate-400 text-[11px] font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4 w-12 text-center">#</th>
+                        <th class="py-3 px-4">Worker Code & Name</th>
+                        <th class="py-3 px-4">Category / Trade</th>
+                        <th class="py-3 px-4">Contact & ID Proof</th>
+                        <th class="py-3 px-4">Payment Method</th>
+                        <th class="py-3 px-4 text-center">Lifetime Output</th>
+                        <th class="py-3 px-4 text-right">Lifetime Wages</th>
+                        <th class="py-3 px-4 text-right bg-amber-50/50 font-bold text-amber-900">Unpaid Balance</th>
+                        <th class="py-3 px-4 text-center">Status</th>
+                        <th class="py-3 px-4 text-center w-36">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for w in workers %}
+                    <tr class="hover:bg-slate-50/60 transition">
+                        <td class="py-3 px-4 text-center font-mono text-slate-400 text-[11px]">
+                            {{ loop.index }}
+                        </td>
+
+                        <!-- Worker Info -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <div class="flex items-center space-x-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
+                                    {{ w.name[:1] }}
+                                </div>
+                                <div>
+                                    <div class="font-bold text-slate-900 flex items-center space-x-1.5">
+                                        <span>{{ w.name }}</span>
+                                        <span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-amber-100 text-amber-800">
+                                            {{ w.worker_code }}
+                                        </span>
+                                    </div>
+                                    {% if w.last_work_date %}
+                                    <p class="text-[10px] text-slate-400">Last worked: {{ w.last_work_date }}</p>
+                                    {% else %}
+                                    <p class="text-[10px] text-slate-300 italic">No production logged yet</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- Category -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                <i class="fas fa-screwdriver-wrench text-[10px] mr-1 text-slate-400"></i>
+                                {{ w.department_category }}
+                            </span>
+                        </td>
+
+                        <!-- Contact & ID Proof -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <div>
+                                {% if w.phone %}
+                                <span class="font-mono text-slate-700 text-xs block">
+                                    <i class="fas fa-phone text-[10px] text-slate-400 mr-1"></i>{{ w.phone }}
+                                </span>
+                                {% else %}
+                                <span class="text-slate-300 italic text-[11px]">No Phone</span>
+                                {% endif %}
+
+                                {% if w.id_proof_number %}
+                                <span class="text-[10px] font-mono text-slate-500">ID: {{ w.id_proof_number }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+
+                        <!-- Payment Method -->
+                        <td class="py-3 px-4 whitespace-nowrap">
+                            <span class="font-semibold text-slate-800 block text-xs">
+                                <i class="fas {% if w.payment_mode == 'UPI' %}fa-qrcode text-indigo-500{% elif w.payment_mode == 'BANK_TRANSFER' %}fa-building-columns text-blue-500{% else %}fa-money-bill-wave text-emerald-500{% endif %} text-[11px] mr-1"></i>
+                                {{ w.payment_mode }}
+                            </span>
+                            {% if w.upi_or_bank_details %}
+                            <span class="text-[10px] font-mono text-slate-500 truncate block max-w-[140px]" title="{{ w.upi_or_bank_details }}">
+                                {{ w.upi_or_bank_details }}
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Lifetime Output -->
+                        <td class="py-3 px-4 text-center font-mono font-bold text-slate-700 whitespace-nowrap">
+                            {{ "{:,}".format(w.total_units_produced) }} <span class="text-[10px] text-slate-400 font-normal">pcs</span>
+                        </td>
+
+                        <!-- Lifetime Wages -->
+                        <td class="py-3 px-4 text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                            ₹{{ "{:,.2f}".format(w.total_lifetime_earnings) }}
+                        </td>
+
+                        <!-- Unpaid Balance -->
+                        <td class="py-3 px-4 text-right bg-amber-50/40 font-mono font-bold whitespace-nowrap">
+                            {% if w.unpaid_balance > 0 %}
+                            <span class="text-amber-800 text-sm">₹{{ "{:,.2f}".format(w.unpaid_balance) }}</span>
+                            {% else %}
+                            <span class="text-slate-400 text-xs">₹0.00</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Status -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            {% if w.is_active == 1 %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                Active
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                                Inactive
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Actions -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center space-x-1.5">
+                                <a href="{{ url_for('piece_rate.worker_statement', worker_id=w.id) }}" 
+                                   class="inline-flex items-center px-2.5 py-1 rounded text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition"
+                                   title="Item-wise breakdown & printable wage voucher">
+                                    <i class="fas fa-file-invoice mr-1 text-[11px]"></i> Statement
+                                </a>
+                                <button type="button" 
+                                        onclick="openEditWorkerModal('{{ w.id }}', '{{ w.worker_code }}', '{{ w.name }}', '{{ w.phone or '' }}', '{{ w.id_proof_number or '' }}', '{{ w.department_category }}', '{{ w.payment_mode }}', '{{ w.upi_or_bank_details or '' }}', '{{ w.daily_target_qty or 0 }}', '{{ w.is_active }}', '{{ w.notes or '' }}')"
+                                        class="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+                                        title="Edit Worker Profile">
+                                    <i class="fas fa-pencil text-xs"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="py-12 text-center text-slate-400 italic">
+                            <i class="fas fa-users-slash text-3xl mb-2 text-slate-300 block"></i>
+                            No contract workers found.
+                            <div class="mt-3">
+                                <button type="button" onclick="openRegisterWorkerModal()" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700">
+                                    <i class="fas fa-user-plus mr-1"></i> Register First Worker
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: REGISTER CONTRACT WORKER -->
+<!-- ========================================================================= -->
+<div id="registerWorkerModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-user-plus"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Register Contract Piece-Rate Worker</h3>
+                    <p class="text-[11px] text-slate-400">Enroll new contractor for piece-rate quantity tracking</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('registerWorkerModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('piece_rate.create_worker') }}" method="POST" class="p-5 space-y-4">
+            
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Worker Code <span class="text-rose-500">*</span></label>
+                    <input type="text" name="worker_code" value="{{ next_code }}" required
+                           class="w-full px-3 py-2 text-xs font-mono font-bold border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Full Name <span class="text-rose-500">*</span></label>
+                    <input type="text" name="name" required placeholder="e.g. Karthik Raja"
+                           class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Mobile Phone</label>
+                    <input type="text" name="phone" placeholder="e.g. 9876543210"
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Aadhaar / ID Proof</label>
+                    <input type="text" name="id_proof_number" placeholder="e.g. 1234-5678-9012"
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Trade Category <span class="text-rose-500">*</span></label>
+                    <select name="department_category" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                        <option value="Book Binding">Book Binding</option>
+                        <option value="Box Pasting">Box Pasting</option>
+                        <option value="Folding & Collation">Folding & Collation</option>
+                        <option value="Thermal Lamination">Thermal Lamination</option>
+                        <option value="Screen Printing">Screen Printing</option>
+                        <option value="Packaging & Eyeleting">Packaging & Eyeleting</option>
+                        <option value="General Press Work">General Press Work</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Payment Mode</label>
+                    <select name="payment_mode" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                        <option value="CASH">CASH (Physical Voucher)</option>
+                        <option value="UPI">UPI (GooglePay / PhonePe)</option>
+                        <option value="BANK_TRANSFER">Bank Account Transfer</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">UPI ID or Bank Account Details</label>
+                <input type="text" name="upi_or_bank_details" placeholder="e.g. 9876543210@upi or Account / IFSC"
+                       class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Daily Target Qty (Pcs)</label>
+                    <input type="number" name="daily_target_qty" min="0" value="0" placeholder="0 = No target"
+                           class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Notes / Address</label>
+                    <input type="text" name="notes" placeholder="Optional notes"
+                           class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden">
+                </div>
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('registerWorkerModal')" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-semibold">
+                    Cancel
+                </button>
+                <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-sm transition">
+                    <i class="fas fa-check mr-1.5"></i> Register Worker
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ========================================================================= -->
+<!-- MODAL: EDIT CONTRACT WORKER -->
+<!-- ========================================================================= -->
+<div id="editWorkerModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <h3 class="font-bold text-sm">Edit Contract Worker Details</h3>
+            <button type="button" onclick="closeModal('editWorkerModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form id="editWorkerForm" method="POST" class="p-5 space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Worker Code</label>
+                    <input type="text" id="editWorkerCode" disabled class="w-full px-3 py-2 text-xs font-mono font-bold bg-slate-100 border border-slate-300 rounded-lg text-slate-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Full Name <span class="text-rose-500">*</span></label>
+                    <input type="text" name="name" id="editWorkerName" required class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Mobile Phone</label>
+                    <input type="text" name="phone" id="editWorkerPhone" class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Aadhaar / ID Proof</label>
+                    <input type="text" name="id_proof_number" id="editWorkerIdProof" class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Trade Category</label>
+                    <input type="text" name="department_category" id="editWorkerCategory" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Payment Mode</label>
+                    <select name="payment_mode" id="editWorkerPaymentMode" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+                        <option value="CASH">CASH</option>
+                        <option value="UPI">UPI</option>
+                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">UPI ID or Bank Account Details</label>
+                <input type="text" name="upi_or_bank_details" id="editWorkerUpi" class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Daily Target Qty</label>
+                    <input type="number" name="daily_target_qty" id="editWorkerTarget" class="w-full px-3 py-2 text-xs font-mono border border-slate-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Active Status</label>
+                    <select name="is_active" id="editWorkerIsActive" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg font-bold">
+                        <option value="1">Active</option>
+                        <option value="0">Inactive</option>
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">Notes</label>
+                <input type="text" name="notes" id="editWorkerNotes" class="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg">
+            </div>
+
+            <div class="pt-2 flex items-center justify-end space-x-2">
+                <button type="button" onclick="closeModal('editWorkerModal')" class="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-semibold">Cancel</button>
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.remove('hidden');
+        el.classList.add('flex');
+    }
+}
+
+function closeModal(id) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.classList.add('hidden');
+        el.classList.remove('flex');
+    }
+}
+
+function openRegisterWorkerModal() {
+    openModal('registerWorkerModal');
+}
+
+function openEditWorkerModal(id, code, name, phone, idProof, category, payMode, upi, target, isActive, notes) {
+    document.getElementById('editWorkerForm').action = "/piece-rate/workers/edit/" + id;
+    document.getElementById('editWorkerCode').value = code;
+    document.getElementById('editWorkerName').value = name;
+    document.getElementById('editWorkerPhone').value = phone;
+    document.getElementById('editWorkerIdProof').value = idProof;
+    document.getElementById('editWorkerCategory').value = category;
+    document.getElementById('editWorkerPaymentMode').value = payMode;
+    document.getElementById('editWorkerUpi').value = upi;
+    document.getElementById('editWorkerTarget').value = target;
+    document.getElementById('editWorkerIsActive').value = isActive;
+    document.getElementById('editWorkerNotes').value = notes;
+    openModal('editWorkerModal');
+}
+</script>
+{% endblock %}

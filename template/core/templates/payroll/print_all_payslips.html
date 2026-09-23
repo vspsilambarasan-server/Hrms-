@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Payslips - {{ payroll_run.period_name }} | {{ company_info.company_name }}</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 8mm 10mm;
+            }
+            body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .payslip-page {
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                margin: 0 !important;
+                padding: 1rem 0 !important;
+            }
+            .payslip-page:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+            }
+            .print-card {
+                border: 1px solid #cbd5e1 !important;
+                padding: 1.25rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased font-sans">
+
+    <!-- TOOLBAR -->
+    <div class="no-print sticky top-0 z-50 bg-slate-900 text-white shadow-md border-b border-slate-800 px-6 py-3">
+        <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold">
+                    <i class="fas fa-print text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold text-white leading-tight">
+                        Batch Payslip Print Preview • {{ payroll_run.period_name }}
+                    </h1>
+                    <p class="text-[11px] text-slate-400">
+                        {{ payslips|length }} Employee Payslips ready for printing (1 per page)
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2.5">
+                <a href="{{ url_for('payroll.view_run', run_id=payroll_run.id) }}" class="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition">
+                    <i class="fas fa-arrow-left mr-1.5"></i> Back to Register
+                </a>
+                <button onclick="window.print()" class="inline-flex items-center px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                    <i class="fas fa-print mr-1.5"></i> Print All ({{ payslips|length }} Slips)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BATCH PAYSLIPS LIST -->
+    <div class="max-w-4xl mx-auto py-6 px-4 space-y-6 print:p-0 print:m-0 print:space-y-0 print:max-w-full">
+        {% for p in payslips %}
+        <div class="payslip-page">
+            <div class="bg-white rounded-xl border border-slate-200 shadow-md p-7 print-card">
+                
+                <!-- 1. COMPANY HEADER -->
+                <div class="border-b-2 border-slate-900 pb-3 flex items-start justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg font-bold">
+                            <i class="fas fa-print"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-black text-slate-900 tracking-tight">{{ company_info.company_name }}</h2>
+                            {% if company_info.address %}
+                            <p class="text-[10px] text-slate-600 font-medium">{{ company_info.address }}</p>
+                            {% endif %}
+                            <div class="flex flex-wrap items-center gap-x-2 text-[9px] text-slate-500 font-mono mt-0.5">
+                                {% if company_info.phone %}<span>Tel: {{ company_info.phone }}</span>{% endif %}
+                                {% if company_info.email %}<span>• {{ company_info.email }}</span>{% endif %}
+                                {% if company_info.gstin %}<span>• GSTIN: {{ company_info.gstin }}</span>{% endif %}
+                                {% if company_info.factory_license_no %}<span>• Lic: {{ company_info.factory_license_no }}</span>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-2.5 py-0.5 bg-slate-100 text-slate-800 text-[10px] font-extrabold uppercase tracking-wider rounded border border-slate-300">
+                            Pay Advice / Payslip
+                        </span>
+                        <p class="text-[11px] font-bold text-slate-700 mt-1 font-mono">{{ p.period_name }}</p>
+                    </div>
+                </div>
+
+                <!-- 2. SIMPLIFIED EMPLOYEE INFO -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 py-3 border-b border-slate-200 text-xs">
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Employee Name</span>
+                        <span class="font-bold text-slate-900">{{ p.first_name }} {{ p.last_name }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Employee Code</span>
+                        <span class="font-mono font-bold text-blue-700">{{ p.emp_no }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Designation</span>
+                        <span class="font-semibold text-slate-800">{{ p.designation }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Salary Type</span>
+                        <span class="font-bold text-purple-700">{{ p.salary_type or p.pay_frequency or "WEEKLY" }}</span>
+                    </div>
+
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Shift Salary</span>
+                        <span class="font-mono font-bold text-slate-800">{{ company_info.currency_symbol }}{{ "%.2f"|format(p.daily_rate) }}/shift</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">OT Rate</span>
+                        <span class="font-mono font-bold text-indigo-700">{{ company_info.currency_symbol }}{{ "%.2f"|format(p.hourly_rate) }}/hr</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Date of Joining</span>
+                        <span class="font-mono text-slate-700">{{ p.join_date }}</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] text-slate-400 uppercase font-bold block">Status</span>
+                        <span class="font-bold text-emerald-700">DISBURSED</span>
+                    </div>
+                </div>
+
+                <!-- 3. SIMPLIFIED SHIFT ATTENDANCE SUMMARY -->
+                <div class="my-3 bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                    <div class="grid grid-cols-4 gap-2 text-center text-xs">
+                        <div class="p-1.5 bg-white rounded border border-slate-200">
+                            <span class="text-[9px] text-slate-400 block font-bold">Days in Period</span>
+                            <span class="font-mono font-extrabold text-slate-800">{{ p.days_in_month }}</span>
+                        </div>
+                        <div class="p-1.5 bg-white rounded border border-slate-200">
+                            <span class="text-[9px] text-emerald-600 block font-bold">Shifts Worked</span>
+                            <span class="font-mono font-extrabold text-emerald-700">{{ p.days_worked }}</span>
+                        </div>
+                        <div class="p-1.5 bg-white rounded border border-slate-200">
+                            <span class="text-[9px] text-purple-600 block font-bold">Night Shifts</span>
+                            <span class="font-mono font-extrabold text-purple-700">{{ p.night_shifts_count }}</span>
+                        </div>
+                        <div class="p-1.5 bg-white rounded border border-slate-200">
+                            <span class="text-[9px] text-indigo-600 block font-bold">Overtime (OT)</span>
+                            <span class="font-mono font-extrabold text-indigo-700">{{ p.approved_ot_hours }} hrs</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. SIMPLIFIED EARNINGS & DEDUCTIONS -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 my-3">
+                    <!-- EARNINGS -->
+                    <div class="border border-slate-200 rounded-lg overflow-hidden">
+                        <div class="bg-emerald-50 px-3 py-1.5 border-b border-slate-200 flex justify-between items-center">
+                            <span class="text-[10px] font-bold text-emerald-900 uppercase">Earnings</span>
+                            <span class="text-[10px] font-bold text-emerald-900 uppercase">Amount</span>
+                        </div>
+                        <table class="w-full text-xs divide-y divide-slate-100">
+                            <tbody>
+                                <tr>
+                                    <td class="py-1.5 px-3 text-slate-700">Shift Wages ({{ p.days_worked }} shifts)</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-bold">{{ "%.2f"|format(p.gross_earnings - p.ot_pay - p.total_shift_allowance - p.bonus) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="py-1.5 px-3 text-slate-700">Overtime Pay ({{ p.approved_ot_hours }}h @ {{ company_info.currency_symbol }}{{ "%.2f"|format(p.hourly_rate) }})</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-indigo-700">+{{ "%.2f"|format(p.ot_pay) }}</td>
+                                </tr>
+                                {% if p.total_shift_allowance > 0 %}
+                                <tr>
+                                    <td class="py-1.5 px-3 text-slate-700">Shift Allowances ({{ p.night_shifts_count }} Nights)</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-emerald-700">+{{ "%.2f"|format(p.total_shift_allowance) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if p.bonus > 0 %}
+                                <tr>
+                                    <td class="py-1.5 px-3 text-amber-900">Festival Bonus</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-amber-700">+{{ "%.2f"|format(p.bonus) }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-slate-50 font-bold border-t border-slate-200">
+                                    <td class="py-1.5 px-3 uppercase text-[10px]">Gross Pay</td>
+                                    <td class="py-1.5 px-3 text-right font-mono text-xs">{{ company_info.currency_symbol }}{{ "%.2f"|format(p.gross_earnings) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- DEDUCTIONS -->
+                    <div class="border border-slate-200 rounded-lg overflow-hidden">
+                        <div class="bg-rose-50 px-3 py-1.5 border-b border-slate-200 flex justify-between items-center">
+                            <span class="text-[10px] font-bold text-rose-900 uppercase">Deductions</span>
+                            <span class="text-[10px] font-bold text-rose-900 uppercase">Amount</span>
+                        </div>
+                        <table class="w-full text-xs divide-y divide-slate-100">
+                            <tbody>
+                                {% if p.pf_deduction > 0 %}
+                                <tr>
+                                    <td class="py-1.5 px-3 text-slate-700">Provident Fund (PF)</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-semibold text-rose-700">-{{ "%.2f"|format(p.pf_deduction) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if p.esi_deduction > 0 %}
+                                <tr>
+                                    <td class="py-1.5 px-3 text-slate-700">State Insurance (ESI)</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-semibold text-rose-700">-{{ "%.2f"|format(p.esi_deduction) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if p.advance_deduction > 0 %}
+                                <tr>
+                                    <td class="py-1.5 px-3 text-rose-900">Advance Cut</td>
+                                    <td class="py-1.5 px-3 text-right font-mono font-bold text-rose-700">-{{ "%.2f"|format(p.advance_deduction) }}</td>
+                                </tr>
+                                {% endif %}
+                                {% if p.pf_deduction <= 0 and p.esi_deduction <= 0 and p.advance_deduction <= 0 %}
+                                <tr>
+                                    <td class="py-3 px-3 text-slate-400 italic text-center" colspan="2">No Deductions</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                            <tfoot>
+                                <tr class="bg-slate-50 font-bold border-t border-slate-200">
+                                    <td class="py-1.5 px-3 uppercase text-[10px]">Total Deductions</td>
+                                    <td class="py-1.5 px-3 text-right font-mono text-rose-700 text-xs">-{{ company_info.currency_symbol }}{{ "%.2f"|format(p.total_deductions) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 5. NET PAY -->
+                <div class="my-3 p-3 rounded-lg bg-slate-900 text-white flex items-center justify-between">
+                    <span class="text-xs uppercase font-bold tracking-wider text-slate-300">Net Salary Payable</span>
+                    <span class="text-xl font-black font-mono text-emerald-400">
+                        {{ company_info.currency_symbol }}{{ "%.2f"|format(p.net_pay) }}
+                    </span>
+                </div>
+
+                <!-- 6. SIGNATURES -->
+                <div class="pt-8 mt-4 border-t border-slate-200 flex justify-between text-xs text-slate-500">
+                    <div class="text-center w-40">
+                        <div class="border-b border-slate-400 pb-1 mb-1"></div>
+                        <span class="font-semibold text-slate-700 text-[10px]">Employee Signature</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-[9px] text-slate-400 block">System Generated Document</span>
+                        <span class="font-mono text-[9px] text-slate-400">{{ company_info.company_name }}</span>
+                    </div>
+                    <div class="text-center w-44">
+                        <div class="border-b border-slate-400 pb-1 mb-1"></div>
+                        <span class="font-semibold text-slate-700 text-[10px]">{{ company_info.supervisor_name or 'Authorized Signatory' }}</span>
+                        <span class="text-[9px] text-slate-400 block">Authorized Signatory</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,264 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Missing Punch Corrections & Approvals | Vasantham Printers{% endblock %}
+{% block header_title %}Missing Attendance Punches & Shift Pattern Gaps{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- SUB-NAVIGATION TABS -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+        <a href="{{ url_for('attendance.index') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-calendar-day mr-1.5 text-slate-500"></i> Single Day View
+        </a>
+        <a href="{{ url_for('attendance.all_punches') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-fingerprint mr-1.5 text-slate-500"></i> All Punches per Person
+        </a>
+        <a href="{{ url_for('attendance.missing_punches_portal') }}" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-sm flex items-center gap-1.5">
+            <i class="fas fa-triangle-exclamation text-amber-300"></i> Missing Punches & Approvals
+            {% if pending_count > 0 %}
+            <span class="px-1.5 py-0.2 text-[10px] rounded-full bg-rose-500 text-white font-extrabold">{{ pending_count }}</span>
+            {% endif %}
+        </a>
+        <a href="{{ url_for('attendance.in_out_report') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-clock-rotate-left mr-1.5 text-slate-500"></i> Daily In & Out Register
+        </a>
+        <a href="{{ url_for('attendance.matrix') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-table-cells mr-1.5 text-slate-500"></i> Monthly Matrix
+        </a>
+        <a href="{{ url_for('attendance.audit_log') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-file-shield mr-1.5 text-slate-500"></i> Edit Audit Log
+        </a>
+    </div>
+
+    <!-- SUMMARY METRICS -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Pending Approval</span>
+                <span class="text-2xl font-black text-rose-700">{{ pending_count }}</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center text-rose-600 text-lg">
+                <i class="fas fa-clock"></i>
+            </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Approved Corrections</span>
+                <span class="text-2xl font-black text-emerald-700">{{ approved_count }}</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 text-lg">
+                <i class="fas fa-circle-check"></i>
+            </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Dismissed Gaps</span>
+                <span class="text-2xl font-black text-slate-700">{{ dismissed_count }}</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 text-lg">
+                <i class="fas fa-circle-xmark"></i>
+            </div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Total Gaps Tracked</span>
+                <span class="text-2xl font-black text-blue-700">{{ total_count }}</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 text-lg">
+                <i class="fas fa-list-check"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTER & ACTION BAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-3">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <form method="GET" action="{{ url_for('attendance.missing_punches_portal') }}" class="flex flex-wrap items-center gap-2">
+                <!-- Status Filter -->
+                <select name="status" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-semibold">
+                    <option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>Pending Review ({{ pending_count }})</option>
+                    <option value="APPROVED" {% if status_filter == 'APPROVED' %}selected{% endif %}>Approved Corrections ({{ approved_count }})</option>
+                    <option value="DISMISSED" {% if status_filter == 'DISMISSED' %}selected{% endif %}>Dismissed ({{ dismissed_count }})</option>
+                    <option value="ALL" {% if status_filter == 'ALL' %}selected{% endif %}>All Records ({{ total_count }})</option>
+                </select>
+
+                <!-- Gap Type Filter -->
+                <select name="gap_type" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                    <option value="">All Gap Types</option>
+                    <option value="MISSING_CLOCK_IN" {% if gap_type_filter == 'MISSING_CLOCK_IN' %}selected{% endif %}>Missing Clock-IN</option>
+                    <option value="MISSING_CLOCK_OUT" {% if gap_type_filter == 'MISSING_CLOCK_OUT' %}selected{% endif %}>Missing Clock-OUT</option>
+                    <option value="MISSING_LUNCH_OUT" {% if gap_type_filter == 'MISSING_LUNCH_OUT' %}selected{% endif %}>Missing Lunch OUT</option>
+                    <option value="MISSING_LUNCH_RETURN" {% if gap_type_filter == 'MISSING_LUNCH_RETURN' %}selected{% endif %}>Missing Lunch Return</option>
+                </select>
+
+                <!-- Department Filter -->
+                <select name="dept" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                    <option value="">All Departments</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if dept_filter|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+
+                <!-- Date Filter -->
+                <input type="date" name="date" value="{{ date_filter or '' }}" onchange="this.form.submit()" 
+                       class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-mono" title="Filter by Specific Date">
+                
+                {% if date_filter or dept_filter or gap_type_filter or status_filter != 'PENDING' %}
+                <a href="{{ url_for('attendance.missing_punches_portal') }}" class="text-xs text-slate-500 hover:text-slate-800 underline px-1">Reset Filters</a>
+                {% endif %}
+            </form>
+
+            <!-- ACTION BUTTONS -->
+            <div class="flex flex-wrap items-center gap-2">
+                {% if pending_count > 0 and status_filter in ('PENDING', 'ALL') %}
+                <form action="{{ url_for('attendance.approve_all_missing_punches') }}" method="POST" onsubmit="return confirm('Are you sure you want to approve ALL {{ pending_count }} pending corrections in 1 click? This will record all suggested punches and update attendance.');">
+                    <button type="submit" class="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer">
+                        <i class="fas fa-check-double mr-1.5"></i> 1-Click Approve All ({{ pending_count }})
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Re-Scan Gaps -->
+                <form action="{{ url_for('attendance.scan_missing_punches_now') }}" method="POST">
+                    <input type="hidden" name="days" value="7">
+                    <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer" title="Analyze biometric punches for gaps over last 7 days">
+                        <i class="fas fa-rotate mr-1.5"></i> Re-Scan Shift Gaps
+                    </button>
+                </form>
+
+                <!-- Send Alert Email to Manager -->
+                <form action="{{ url_for('attendance.send_missing_punch_email_now') }}" method="POST">
+                    <button type="submit" class="inline-flex items-center px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer" title="Send email digest of pending missing punches to manager">
+                        <i class="fas fa-envelope mr-1.5 text-amber-400"></i> Email Manager Alert
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXPLANATION BANNER -->
+    <div class="bg-blue-50/80 border border-blue-200 rounded-xl p-3.5 text-xs text-blue-900 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div class="flex items-center space-x-2.5">
+            <i class="fas fa-wand-magic-sparkles text-blue-600 text-base"></i>
+            <div>
+                <strong class="font-bold">Automated Shift Pattern Analysis:</strong>
+                <span class="text-blue-800"> Compares each worker's scheduled shift timings (Start, Midday Lunch, End) against actual biometric scans. You can review the exact gap and approve the timestamped correction with a <strong>single click</strong>.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- LIST OF DETECTED GAPS -->
+    <div class="space-y-3">
+        {% if alerts %}
+            {% for a in alerts %}
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3 hover:border-slate-300 transition">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                    <!-- Left: Employee & Date Info -->
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-sm shrink-0">
+                            {{ a.first_name[:1] }}{{ a.last_name[:1] if a.last_name else '' }}
+                        </div>
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <h4 class="font-bold text-sm text-slate-900">{{ a.first_name }} {{ a.last_name }}</h4>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">{{ a.emp_no }}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">{{ a.dept_name or 'Plant' }}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                Date: <strong class="text-slate-800 font-mono">{{ a.date }}</strong> • 
+                                Expected Shift: <strong class="text-slate-700">{{ a.shift_code }} ({{ a.start_time }} - {{ a.end_time }})</strong>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Right: Gap Badge & Suggested Correction -->
+                    <div class="flex flex-wrap items-center gap-2 text-xs">
+                        <!-- Gap Type Badge -->
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg font-bold shadow-2xs
+                            {% if 'CLOCK' in a.gap_type %}bg-rose-50 text-rose-800 border border-rose-200
+                            {% elif 'LUNCH' in a.gap_type %}bg-amber-50 text-amber-900 border border-amber-200
+                            {% else %}bg-slate-100 text-slate-800 border border-slate-200{% endif %}">
+                            <i class="fas {% if 'CLOCK' in a.gap_type %}fa-triangle-exclamation text-rose-500{% elif 'LUNCH' in a.gap_type %}fa-utensils text-amber-500{% else %}fa-circle-exclamation text-slate-500{% endif %} mr-1.5 text-[11px]"></i>
+                            {{ a.gap_type.replace('_', ' ').title() }}
+                        </span>
+
+                        <!-- Suggested Correction Badge -->
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <span class="text-[10px] font-sans text-emerald-600 font-normal">Suggested:</span>
+                            <span class="px-1.5 py-0.2 rounded text-[10px] {% if a.suggested_punch_type == 'IN' %}bg-emerald-600 text-white{% else %}bg-indigo-600 text-white{% endif %}">{{ a.suggested_punch_type }}</span>
+                            <span>{{ a.suggested_timestamp[11:] }}</span>
+                        </div>
+
+                        <!-- 1-Click Action Buttons -->
+                        {% if a.status == 'PENDING' %}
+                        <form action="{{ url_for('attendance.approve_missing_punch', alert_id=a.id) }}" method="POST">
+                            <button type="submit" class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition cursor-pointer" title="Approve and record punch with 1 click">
+                                <i class="fas fa-check mr-1.5"></i> 1-Click Approve
+                            </button>
+                        </form>
+                        <form action="{{ url_for('attendance.dismiss_missing_punch', alert_id=a.id) }}" method="POST" onsubmit="return confirm('Dismiss this missing punch gap alert?');">
+                            <button type="submit" class="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 transition cursor-pointer" title="Dismiss alert (e.g. absent / left early)">
+                                <i class="fas fa-xmark mr-1"></i> Dismiss
+                            </button>
+                        </form>
+                        {% elif a.status == 'APPROVED' %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <i class="fas fa-check-circle mr-1 text-emerald-600"></i> Approved by {{ a.approved_by or 'Admin' }}
+                        </span>
+                        {% elif a.status == 'DISMISSED' %}
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            <i class="fas fa-ban mr-1 text-slate-400"></i> Dismissed
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Middle: Gap Description & Existing Day Timeline Strip -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs bg-slate-50/70 p-3 rounded-lg border border-slate-100">
+                    <div class="text-slate-600 flex items-center space-x-2">
+                        <i class="fas fa-info-circle text-slate-400"></i>
+                        <span>{{ a.description }}</span>
+                    </div>
+
+                    <!-- Timeline of actual punches on this day -->
+                    <div class="flex items-center space-x-1.5 font-mono text-[11px] shrink-0">
+                        <span class="text-slate-400 font-sans text-[10px] uppercase font-bold mr-1">Actual Scans:</span>
+                        {% if a.day_punches %}
+                            {% for dp in a.day_punches %}
+                            <span class="px-2 py-0.5 rounded border shadow-2xs font-bold {% if dp.punch_type == 'IN' %}bg-emerald-50 text-emerald-800 border-emerald-200{% else %}bg-indigo-50 text-indigo-800 border-indigo-200{% endif %}">
+                                {{ dp.punch_type or 'PUNCH' }}: {{ dp.punch_time[11:16] }}
+                            </span>
+                            {% if not loop.last %}
+                            <i class="fas fa-arrow-right text-[8px] text-slate-300"></i>
+                            {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 font-sans text-[10px] font-bold">
+                                0 Scans Recorded
+                            </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="bg-white rounded-xl border border-slate-200 p-12 text-center shadow-sm">
+                <div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3 text-2xl">
+                    <i class="fas fa-circle-check"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-800">No Missing Punch Gaps Found!</h3>
+                <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                    All expected shift patterns are satisfied for the selected filter criteria, or all flagged gaps have been reviewed and approved.
+                </p>
+                <div class="mt-4">
+                    <a href="{{ url_for('attendance.missing_punches_portal', status='ALL') }}" class="text-xs font-bold text-blue-600 hover:text-blue-800 underline">
+                        View All Historical Gaps & Approvals &raquo;
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

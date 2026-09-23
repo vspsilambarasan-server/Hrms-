@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}Attendance Edit Audit Trail | Vasantham Printers{% endblock %}
+{% block header_title %}Attendance & Punch Edit Audit Trail{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- SUB-NAVIGATION TABS -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+        <a href="{{ url_for('attendance.index') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-calendar-day mr-1.5 text-slate-500"></i> Single Day View
+        </a>
+        <a href="{{ url_for('attendance.all_punches') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-fingerprint mr-1.5 text-slate-500"></i> All Punches per Person
+        </a>
+        <a href="{{ url_for('attendance.in_out_report') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-clock-rotate-left mr-1.5 text-slate-500"></i> Daily In & Out Register
+        </a>
+        <a href="{{ url_for('attendance.matrix') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-table-cells mr-1.5 text-slate-500"></i> Monthly Matrix
+        </a>
+        <a href="{{ url_for('attendance.audit_log') }}" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-sm">
+            <i class="fas fa-file-shield mr-1.5"></i> Edit Audit Log
+        </a>
+    </div>
+
+    <!-- COMPLIANCE BANNER -->
+    <div class="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400 text-lg">
+                <i class="fas fa-shield-halved"></i>
+            </div>
+            <div>
+                <div class="flex items-center space-x-2">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500 text-slate-950 uppercase tracking-wider">Audit Trail Policy</span>
+                    <h4 class="text-xs font-bold text-white">Immutable Biometric & Manual Adjustment Audit Log</h4>
+                </div>
+                <p class="text-xs text-slate-300 mt-0.5">
+                    Every manual punch entry, timing correction, or authorized punch deletion is permanently recorded with its justification reason, original value, timestamp, and authorizing supervisor.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <a href="{{ url_for('attendance.export_audit_log_csv') }}" 
+               class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center">
+                <i class="fas fa-file-csv mr-1.5"></i> Export Audit CSV
+            </a>
+            <button type="button" onclick="window.print()" 
+                    class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold transition border border-slate-700">
+                <i class="fas fa-print mr-1.5"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <!-- SUMMARY METRICS -->
+    <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Logged Edits</span>
+            <span class="text-xl font-extrabold text-slate-800">{{ stats.total_edits }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Manual Punches</span>
+            <span class="text-xl font-extrabold text-emerald-700">{{ stats.manual_punches }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Punch Corrections</span>
+            <span class="text-xl font-extrabold text-amber-700">{{ stats.punch_edits }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Deleted Punches</span>
+            <span class="text-xl font-extrabold text-rose-700">{{ stats.deleted_punches }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-blue-600 uppercase tracking-wider block">Staff Modified</span>
+            <span class="text-xl font-extrabold text-blue-700">{{ stats.unique_staff }}</span>
+        </div>
+    </div>
+
+    <!-- SEARCH & FILTER -->
+    <div class="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="relative w-full max-w-sm">
+            <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="auditSearch" onkeyup="filterAuditTable()" placeholder="Search staff, reason, or author..." 
+                   class="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border-slate-200 focus:border-blue-500 bg-slate-50">
+        </div>
+        <div class="text-xs text-slate-500">
+            Showing <strong class="text-slate-800" id="auditRowCount">{{ logs|length }}</strong> audit records
+        </div>
+    </div>
+
+    <!-- AUDIT TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs" id="auditTable">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+                        <th class="py-3 px-4 w-12 text-center">Log #</th>
+                        <th class="py-3 px-4">Timestamp of Edit</th>
+                        <th class="py-3 px-4">Staff Member</th>
+                        <th class="py-3 px-4">Edit Action</th>
+                        <th class="py-3 px-4">Original Value</th>
+                        <th class="py-3 px-4">New Adjusted Value</th>
+                        <th class="py-3 px-4 min-w-[200px]">Reason for Modification</th>
+                        <th class="py-3 px-4 text-right">Authorized By</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for l in logs %}
+                    <tr class="hover:bg-slate-50 transition audit-row" 
+                        data-search="{{ l.emp_no }} {{ l.first_name }} {{ l.last_name }} {{ l.dept_name }} {{ l.reason }} {{ l.edited_by }}">
+                        <td class="py-2.5 px-4 text-center font-mono text-slate-400 font-bold">
+                            {{ l.id }}
+                        </td>
+                        <td class="py-2.5 px-4 font-mono font-bold text-slate-800 whitespace-nowrap">
+                            <i class="far fa-clock text-slate-400 mr-1.5"></i>{{ l.created_at }}
+                        </td>
+                        <td class="py-2.5 px-4">
+                            <span class="font-bold text-slate-900 block">{{ l.first_name }} {{ l.last_name }}</span>
+                            <span class="text-[10px] font-mono text-slate-400">{{ l.emp_no }} • {{ l.dept_name }}</span>
+                        </td>
+                        <td class="py-2.5 px-4 whitespace-nowrap">
+                            {% if l.edit_type == 'MANUAL_IN' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <i class="fas fa-sign-in-alt mr-1 text-emerald-600"></i> Manual Punch IN
+                            </span>
+                            {% elif l.edit_type == 'MANUAL_OUT' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                <i class="fas fa-sign-out-alt mr-1 text-indigo-600"></i> Manual Punch OUT
+                            </span>
+                            {% elif l.edit_type == 'PUNCH_EDIT' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                <i class="fas fa-pen-to-square mr-1 text-amber-600"></i> Punch Edited
+                            </span>
+                            {% elif l.edit_type == 'PUNCH_DELETE' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                <i class="fas fa-trash-can mr-1 text-rose-600"></i> Punch Deleted
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300">
+                                {{ l.edit_type }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-4 font-mono text-slate-500 whitespace-nowrap">
+                            {% if l.old_value %}
+                            <span class="line-through text-rose-600/80">{{ l.old_value }}</span>
+                            {% else %}
+                            <span class="text-slate-300 italic">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-4 font-mono font-bold whitespace-nowrap">
+                            {% if l.edit_type == 'PUNCH_DELETE' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wider">
+                                <i class="fas fa-ban mr-1 text-rose-500"></i> DELETED
+                            </span>
+                            {% else %}
+                            <span class="text-emerald-700">{{ l.new_value }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-4 text-slate-700">
+                            <span class="font-medium bg-slate-100 px-2 py-0.5 rounded text-xs inline-block">{{ l.reason }}</span>
+                        </td>
+                        <td class="py-2.5 px-4 text-right font-medium text-slate-600 whitespace-nowrap">
+                            <i class="fas fa-user-shield text-[10px] text-blue-500 mr-1"></i>
+                            {{ l.edited_by }}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="py-12 text-center text-slate-400 italic">
+                            <i class="fas fa-clipboard-check text-3xl text-slate-300 block mb-2"></i>
+                            No edit or manual punch modifications recorded yet. All data strictly reflects original biometric terminal logs.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function filterAuditTable() {
+    const q = document.getElementById('auditSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('.audit-row');
+    let visible = 0;
+    rows.forEach(r => {
+        const text = r.getAttribute('data-search').toLowerCase();
+        if (text.includes(q)) {
+            r.style.display = '';
+            visible++;
+        } else {
+            r.style.display = 'none';
+        }
+    });
+    document.getElementById('auditRowCount').innerText = visible;
+}
+</script>
+{% endblock %}

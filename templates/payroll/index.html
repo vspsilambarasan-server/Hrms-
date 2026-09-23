@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Payroll Runs | ApexHRMS{% endblock %}
+{% block header_title %}Payroll Processing: Weekly & Monthly Cycles{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- KPI STATS CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Net Disbursed</span>
+            <span class="text-2xl font-black text-slate-800 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.all_time_net) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Across {{ stats.total_runs }} completed cycles</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Overtime Disbursed</span>
+            <span class="text-2xl font-black text-indigo-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.all_time_ot) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Approved OT claims</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Shift Allowances</span>
+            <span class="text-2xl font-black text-emerald-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.all_time_shift_allowance) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Night shift premiums</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Bonus & Incentives</span>
+            <span class="text-2xl font-black text-amber-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.all_time_bonus) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Festival & production bonus</span>
+        </div>
+
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Advances Recovered</span>
+            <span class="text-2xl font-black text-purple-700 mt-1 block">
+                {{ company_info.currency_symbol }}{{ "%.2f"|format(stats.all_time_advances) }}
+            </span>
+            <span class="text-xs text-slate-400 mt-0.5 block">Via weekly payroll cuts</span>
+        </div>
+    </div>
+
+    <!-- ACTION CONTROLS & SHORTCUT BAR -->
+    <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-5 rounded-2xl text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <span class="text-xs font-bold text-blue-400 uppercase tracking-wider block">Payroll Cycle Execution</span>
+            <h2 class="text-lg font-black mt-0.5">{{ company_info.company_name }} Salary Generation</h2>
+            <p class="text-xs text-slate-300 mt-0.5">Choose between weekly wage settlement (with automatic advance installments) or monthly salary.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <button onclick="openModal('runWeeklyPayrollModal')" class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md">
+                <i class="fas fa-calendar-week mr-2 text-[11px]"></i> Run Weekly Payroll
+            </button>
+
+            <button onclick="openModal('runMonthlyPayrollModal')" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-md">
+                <i class="fas fa-calendar-days mr-2 text-[11px]"></i> Run Monthly Payroll
+            </button>
+
+            <a href="{{ url_for('payroll.advances_portal') }}" class="inline-flex items-center px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition">
+                <i class="fas fa-hand-holding-dollar mr-1.5 text-amber-400"></i> Advances Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- PAYROLL RUNS TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+                <h3 class="font-bold text-sm text-slate-800">Payroll Cycle Registers</h3>
+                <p class="text-xs text-slate-500">Chronological history of processed weekly and monthly batches.</p>
+            </div>
+
+            <!-- Tab Filters -->
+            <div class="flex items-center space-x-1 bg-slate-100 p-1 rounded-lg text-xs">
+                <a href="{{ url_for('payroll.index', type='ALL') }}" 
+                   class="px-3 py-1 rounded-md font-semibold transition {% if active_filter == 'ALL' %}bg-white text-slate-900 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                    All Cycles
+                </a>
+                <a href="{{ url_for('payroll.index', type='WEEKLY') }}" 
+                   class="px-3 py-1 rounded-md font-semibold transition {% if active_filter == 'WEEKLY' %}bg-white text-purple-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                    Weekly Cycles
+                </a>
+                <a href="{{ url_for('payroll.index', type='MONTHLY') }}" 
+                   class="px-3 py-1 rounded-md font-semibold transition {% if active_filter == 'MONTHLY' %}bg-white text-blue-700 shadow-sm{% else %}text-slate-600 hover:text-slate-900{% endif %}">
+                    Monthly Cycles
+                </a>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Cycle & Dates</th>
+                        <th class="py-3 px-3 text-center">Type</th>
+                        <th class="py-3 px-3 text-center">Headcount</th>
+                        <th class="py-3 px-3 text-right">OT Pay</th>
+                        <th class="py-3 px-3 text-right">Bonus</th>
+                        <th class="py-3 px-3 text-right">Advance Cuts</th>
+                        <th class="py-3 px-3 text-right">Total Net</th>
+                        <th class="py-3 px-3 text-center">Status</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for run in runs %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4 font-bold text-slate-800">
+                            {{ run.period_name }}
+                            <span class="text-[10px] text-slate-400 font-mono block">{{ run.start_date }} to {{ run.end_date }}</span>
+                        </td>
+                        <td class="py-3.5 px-3 text-center">
+                            {% if run.run_type == 'WEEKLY' %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-purple-50 text-purple-700 border border-purple-200">
+                                WEEKLY
+                            </span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200">
+                                MONTHLY
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-3 text-center font-semibold text-slate-700">
+                            {{ run.total_employees }} staff
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-semibold text-indigo-600">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(run.total_ot_pay) }}
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-semibold text-amber-600">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(run.total_bonus) }}
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-semibold text-rose-600">
+                            -{{ company_info.currency_symbol }}{{ "%.2f"|format(run.total_advance_deductions) }}
+                        </td>
+                        <td class="py-3.5 px-3 text-right font-mono font-extrabold text-slate-900 text-sm">
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(run.total_net) }}
+                        </td>
+                        <td class="py-3.5 px-3 text-center">
+                            {% if run.status == 'FINALIZED' %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-900 text-white">LOCKED</span>
+                            {% else %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">DRAFT</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
+                            <a href="{{ url_for('payroll.view_run', run_id=run.id) }}" class="inline-flex items-center px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-xs font-bold transition">
+                                View Ledger <i class="fas fa-chevron-right ml-1.5 text-[9px] text-slate-400"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-10 text-slate-400 italic">No payroll cycles found. Run a weekly or monthly cycle above.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- RUN WEEKLY PAYROLL MODAL -->
+<div id="runWeeklyPayrollModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-6 py-4 bg-purple-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-calendar-week text-purple-300"></i>
+                <h3 class="font-bold text-sm">Run Weekly Payroll</h3>
+            </div>
+            <button onclick="closeModal('runWeeklyPayrollModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('payroll.process_weekly_run') }}" method="POST" class="p-6 space-y-4">
+            <p class="text-xs text-slate-500">
+                Calculates weekly wages based on attendance, night shifts, approved OT, plus <strong>automatic weekly salary advance cuts</strong>.
+            </p>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Week Start Date *</label>
+                    <input type="date" name="start_date" value="{{ default_week_start }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Week End Date *</label>
+                    <input type="date" name="end_date" value="{{ default_week_end }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Period Label (Optional)</label>
+                <input type="text" name="period_name" placeholder="e.g. Week 37 (01 Sep - 07 Sep 2026)" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Target Employees</label>
+                    <select name="filter_frequency" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                        <option value="WEEKLY" selected>Weekly Paid Staff ({{ weekly_emp_count }} staff)</option>
+                        <option value="ALL">All Active Employees</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Bonus / Incentive ({{ company_info.currency_symbol }})</label>
+                    <input type="number" step="0.01" name="bonus" value="0.00" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono">
+                </div>
+            </div>
+
+            <div class="p-3 bg-purple-50 rounded-lg border border-purple-200 text-xs text-purple-900 space-y-1">
+                <p class="font-bold"><i class="fas fa-check-circle mr-1"></i> Weekly Deductions Applied:</p>
+                <p>• Employees with an active salary advance will have their scheduled weekly installment automatically deducted.</p>
+                <p>• Night shift allowances (₹350/night) & approved OT are included.</p>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('runWeeklyPayrollModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-xs font-bold text-white shadow-sm">
+                    Execute Weekly Pay Run
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- RUN MONTHLY PAYROLL MODAL -->
+<div id="runMonthlyPayrollModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-calendar-days text-blue-400"></i>
+                <h3 class="font-bold text-sm">Run Monthly Payroll</h3>
+            </div>
+            <button onclick="closeModal('runMonthlyPayrollModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('payroll.process_run') }}" method="POST" class="p-6 space-y-4">
+            <p class="text-xs text-slate-500">
+                Calculates full monthly salaries, incorporating duty attendance, night allowances, approved overtime hours, and monthly advance deductions.
+            </p>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Month *</label>
+                    <select name="month" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                        <option value="1" {% if current_month == 1 %}selected{% endif %}>January</option>
+                        <option value="2" {% if current_month == 2 %}selected{% endif %}>February</option>
+                        <option value="3" {% if current_month == 3 %}selected{% endif %}>March</option>
+                        <option value="4" {% if current_month == 4 %}selected{% endif %}>April</option>
+                        <option value="5" {% if current_month == 5 %}selected{% endif %}>May</option>
+                        <option value="6" {% if current_month == 6 %}selected{% endif %}>June</option>
+                        <option value="7" {% if current_month == 7 %}selected{% endif %}>July</option>
+                        <option value="8" {% if current_month == 8 %}selected{% endif %}>August</option>
+                        <option value="9" {% if current_month == 9 %}selected{% endif %}>September</option>
+                        <option value="10" {% if current_month == 10 %}selected{% endif %}>October</option>
+                        <option value="11" {% if current_month == 11 %}selected{% endif %}>November</option>
+                        <option value="12" {% if current_month == 12 %}selected{% endif %}>December</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Year *</label>
+                    <input type="number" name="year" value="{{ current_year }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-bold">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Festival / Special Bonus ({{ company_info.currency_symbol }})</label>
+                <input type="number" step="0.01" name="bonus" value="0.00" placeholder="0.00" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono">
+                <span class="text-[10px] text-slate-400 mt-0.5 block">Applied to each staff member for this monthly pay period</span>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('runMonthlyPayrollModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Execute Pay Run
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

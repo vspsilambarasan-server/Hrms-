@@ -1,0 +1,1398 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Attendance & Punches | ApexHRMS{% endblock %}
+{% block header_title %}Shift Attendance & Punch Register{% endblock %}
+
+{% block content %}
+<div class="space-y-6 w-full max-w-[1720px] mx-auto px-2 sm:px-4">
+
+    <!-- SUB-NAVIGATION TABS -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+        <a href="{{ url_for('attendance.index', date=selected_date) }}" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-sm">
+            <i class="fas fa-calendar-day mr-1.5"></i> Single Day View
+        </a>
+        <a href="{{ url_for('attendance.all_punches', date=selected_date) }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-fingerprint mr-1.5 text-blue-500"></i> All Punches per Person
+        </a>
+        <a href="{{ url_for('attendance.in_out_report') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-clock-rotate-left mr-1.5 text-slate-500"></i> Daily In & Out Register
+        </a>
+        <a href="{{ url_for('attendance.matrix') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-table-cells mr-1.5 text-slate-500"></i> Monthly Matrix
+        </a>
+        <a href="{{ url_for('attendance.audit_log') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-file-shield mr-1.5 text-slate-500"></i> Edit Audit Log
+        </a>
+    </div>
+
+    <!-- TOP TOOLBAR & DATE SELECTOR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <form method="GET" action="{{ url_for('attendance.index') }}" class="flex flex-wrap items-center gap-2">
+            <!-- Day Navigation -->
+            <div class="flex items-center space-x-1">
+                <a href="{{ url_for('attendance.index', date=prev_date, dept=selected_dept) }}" 
+                   class="p-1.5 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs transition" title="Previous Day">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                
+                <input type="date" name="date" value="{{ selected_date }}" onchange="this.form.submit()" 
+                       class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-mono font-semibold">
+
+                <a href="{{ url_for('attendance.index', date=next_date, dept=selected_dept) }}" 
+                   class="p-1.5 px-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs transition" title="Next Day">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+
+                <a href="{{ url_for('attendance.index', date=today_date, dept=selected_dept) }}" 
+                   class="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-semibold transition">
+                    Today
+                </a>
+            </div>
+
+            <!-- Department Filter -->
+            <select name="dept" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                <option value="">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d.id }}" {% if selected_dept|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <div class="flex items-center space-x-2">
+            <a href="{{ url_for('attendance.export_in_out_csv', start_date=selected_date, end_date=selected_date, dept=selected_dept) }}" 
+               class="inline-flex items-center px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition border border-slate-200 shadow-xs" title="Export CSV for this day">
+                <i class="fas fa-file-csv mr-1.5 text-emerald-600"></i> Export Day CSV
+            </a>
+            <button onclick="openManualPunchForEmp('', '', '', '', 0, '')" class="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                <i class="fas fa-fingerprint mr-1.5"></i> Manual Punch Entry
+            </button>
+            <button onclick="openModal('importLogsModal')" class="inline-flex items-center px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                <i class="fas fa-file-import mr-1.5"></i> Import Biometric Logs
+            </button>
+            <form action="{{ url_for('attendance.trigger_missed_punch_alert') }}" method="POST" class="inline">
+                <input type="hidden" name="date" value="{{ selected_date }}">
+                <button type="submit" class="inline-flex items-center px-3.5 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-sm" title="Scan and email supervisor alert for any staff missing morning clock-in">
+                    <i class="fas fa-bell mr-1.5"></i> Email Missed Punch Alert
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- BIOMETRIC MACHINE DIRECT SYNC PANEL WITH AUTO-SYNC EVERY 1 MINUTE -->
+    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-4 rounded-xl shadow-md border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-3.5">
+            <div class="w-11 h-11 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-400 text-lg shrink-0">
+                <i class="fas fa-network-wired"></i>
+            </div>
+            <div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- Status Indicator -->
+                    <div id="autoSyncStatusPill" class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold {% if auto_sync_status.enabled %}bg-emerald-500/20 text-emerald-300 border border-emerald-500/40{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/40{% endif %}">
+                        <span id="autoSyncDot" class="w-2 h-2 rounded-full {% if auto_sync_status.enabled %}bg-emerald-400 animate-pulse{% else %}bg-amber-400{% endif %}"></span>
+                        <span id="autoSyncTitleText">{% if auto_sync_status.enabled %}Auto-Sync Active (Every 1 Min){% else %}Auto-Sync Paused{% endif %}</span>
+                    </div>
+
+                    <!-- Next Sync Countdown Badge -->
+                    <span id="autoSyncCountdownBadge" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-200 border border-slate-700">
+                        <i class="fas fa-clock mr-1 text-blue-400"></i> Next in <strong id="autoSyncSeconds" class="text-white ml-1">{{ auto_sync_status.next_sync_in_seconds }}s</strong>
+                    </span>
+
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                        {{ auto_sync_status.device_ip }}:{{ auto_sync_status.device_port }}
+                    </span>
+                </div>
+
+                <p class="text-xs text-slate-300 mt-1 flex items-center gap-2 flex-wrap">
+                    <span>ZKTeco Device <strong class="text-white">x 2008</strong> • <strong>29 Enrolled Staff</strong> • <strong>8,700+ Punches</strong></span>
+                    <span class="text-slate-500">•</span>
+                    <span id="autoSyncLastMessage" class="text-[11px] text-slate-400 font-mono truncate max-w-md" title="{{ auto_sync_status.last_message }}">
+                        {{ auto_sync_status.last_message or 'Syncs real biometric punches automatically every 60 seconds' }}
+                    </span>
+                </p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+            <!-- MANUAL SYNC REAL PUNCHES BUTTON -->
+            <button id="manualSyncBtn" type="button" onclick="triggerManualSync()" 
+                    class="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center cursor-pointer">
+                <i id="manualSyncIcon" class="fas fa-arrows-rotate mr-1.5"></i>
+                <span id="manualSyncText">Sync Real Punches</span>
+            </button>
+
+            <!-- TOGGLE AUTO-SYNC BUTTON -->
+            <button id="toggleAutoSyncBtn" type="button" onclick="toggleAutoSync()" 
+                    class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition flex items-center cursor-pointer"
+                    title="Toggle auto-sync on/off">
+                <i id="toggleAutoSyncIcon" class="fas {% if auto_sync_status.enabled %}fa-pause text-amber-400{% else %}fa-play text-emerald-400{% endif %} mr-1.5"></i>
+                <span id="toggleAutoSyncText">{% if auto_sync_status.enabled %}Pause Auto-Sync{% else %}Resume Auto-Sync{% endif %}</span>
+            </button>
+
+            <!-- IMPORT STAFF BUTTON -->
+            <form action="{{ url_for('attendance.sync_machine_users') }}" method="POST" class="inline">
+                <input type="hidden" name="device_ip" value="{{ auto_sync_status.device_ip }}">
+                <button type="submit" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold border border-slate-700 transition">
+                    <i class="fas fa-user-gear mr-1.5 text-blue-400"></i> Import Staff (29)
+                </button>
+            </form>
+
+            <button onclick="openModal('biometricConfigModal')" class="p-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700" title="Change Terminal IP">
+                <i class="fas fa-gear"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ACTION ALERT BANNER FOR MISSED MIDDLE PUNCHES -->
+    {% if stats.pending_mid_punch_count > 0 %}
+    <div class="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3 animate-in fade-in">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center text-lg shrink-0">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h4 class="text-xs font-extrabold text-amber-950 uppercase tracking-wide">
+                    Action Required: {{ stats.pending_mid_punch_count }} Employee(s) Missed Middle Break/Lunch Punches
+                </h4>
+                <p class="text-xs text-amber-800 mt-0.5">
+                    Staff clocked in at morning and logged out, but missed intermediate break punches. <strong>Salary for these days will NOT be calculated in payroll until you approve.</strong>
+                </p>
+            </div>
+        </div>
+        <form action="{{ url_for('attendance.approve_all_mid_punches') }}" method="POST" class="shrink-0">
+            <input type="hidden" name="date" value="{{ selected_date }}">
+            <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center cursor-pointer">
+                <i class="fas fa-check-double mr-1.5"></i> Approve All for {{ selected_date }}
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- ACTION ALERT BANNER FOR DETECTED MISSING SHIFT TIMINGS / PUNCH GAPS -->
+    {% if stats.pending_missing_gap_count > 0 %}
+    <div class="bg-rose-50 border-2 border-rose-300 rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3 animate-in fade-in">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-rose-200 text-rose-900 flex items-center justify-center text-lg shrink-0">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h4 class="text-xs font-extrabold text-rose-950 uppercase tracking-wide">
+                    Action Required: {{ stats.pending_missing_gap_count }} Missed Shift Timing(s) Detected on {{ selected_date }}
+                </h4>
+                <p class="text-xs text-rose-800 mt-0.5">
+                    Staff missed scheduled shift punches (Morning Clock-IN, Lunch Break, or Evening Clock-OUT). Review each timing below and click <strong>Approve</strong> inline on that row to synchronize biometric attendance & payroll immediately.
+                </p>
+            </div>
+        </div>
+        <form action="{{ url_for('attendance.approve_all_missing_punches') }}" method="POST" class="shrink-0">
+            <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition shadow-sm flex items-center cursor-pointer">
+                <i class="fas fa-check-double mr-1.5"></i> 1-Click Approve All ({{ stats.pending_missing_gap_count }})
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- METRICS OVERVIEW -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-blue-300 transition" onclick="filterByStatus('ALL')">
+            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Staff</span>
+            <span class="text-xl font-extrabold text-slate-800">{{ stats.total_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-emerald-300 transition" onclick="filterByStatus('PRESENT')">
+            <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">Present</span>
+            <span class="text-xl font-extrabold text-emerald-700">{{ stats.present_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-indigo-300 transition" onclick="filterByStatus('LEAVE')">
+            <span class="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Leave / Off</span>
+            <span class="text-xl font-extrabold text-indigo-700">{{ stats.leave_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-rose-300 transition" onclick="filterByStatus('ABSENT')">
+            <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">Absent</span>
+            <span class="text-xl font-extrabold text-rose-700">{{ stats.absent_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-amber-300 transition" onclick="filterByStatus('LATE')">
+            <span class="text-[10px] font-bold text-amber-600 uppercase tracking-wider block">Late Arrival</span>
+            <span class="text-xl font-extrabold text-amber-700">{{ stats.late_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-purple-300 transition" onclick="filterByStatus('HALF_DAY')">
+            <span class="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Half Day</span>
+            <span class="text-xl font-extrabold text-purple-700">{{ stats.half_day_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-purple-300 transition" onclick="filterByStatus('EXEMPT')">
+            <span class="text-[10px] font-bold text-purple-600 uppercase tracking-wider block">Admin / Exempt</span>
+            <span class="text-xl font-extrabold text-purple-700">{{ stats.exempt_count }}</span>
+        </div>
+        <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Total Overtime</span>
+            <span class="text-xl font-extrabold text-indigo-700">{{ "%.1f"|format(stats.total_ot_hours) }}h</span>
+        </div>
+    </div>
+
+    <!-- QUICK SEARCH & FILTER PILLS -->
+    <div class="bg-white px-4 py-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="relative w-full max-w-sm">
+            <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+            <input type="text" id="dailySearch" onkeyup="filterDailyTable()" placeholder="Quick filter by employee name or ID..." 
+                   class="w-full pl-9 pr-4 py-1.5 text-xs rounded-lg border-slate-200 focus:border-blue-500 bg-slate-50">
+        </div>
+
+        <div class="flex items-center space-x-1.5 overflow-x-auto text-xs select-none">
+            <button type="button" onclick="filterByStatus('ALL')" class="status-pill active px-3 py-1 rounded-lg font-bold transition bg-blue-600 text-white" data-status="ALL">
+                All ({{ stats.total_count }})
+            </button>
+            <button type="button" onclick="filterByStatus('PRESENT')" class="status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition" data-status="PRESENT">
+                <i class="fas fa-user-check mr-1 text-emerald-500"></i> Present ({{ stats.present_count }})
+            </button>
+            <button type="button" onclick="filterByStatus('LEAVE')" class="status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition" data-status="LEAVE">
+                <i class="fas fa-calendar-minus mr-1 text-indigo-500"></i> Leave / Off ({{ stats.leave_count }})
+            </button>
+            <button type="button" onclick="filterByStatus('ABSENT')" class="status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition" data-status="ABSENT">
+                <i class="fas fa-user-xmark mr-1 text-rose-500"></i> Absent ({{ stats.absent_count }})
+            </button>
+            <button type="button" onclick="filterByStatus('LATE')" class="status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition" data-status="LATE">
+                <i class="fas fa-clock mr-1 text-amber-500"></i> Late ({{ stats.late_count }})
+            </button>
+            <button type="button" onclick="filterByStatus('HALF_DAY')" class="status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition" data-status="HALF_DAY">
+                <i class="fas fa-hourglass-half mr-1 text-purple-500"></i> Half Day ({{ stats.half_day_count }})
+            </button>
+            {% if stats.pending_missing_gap_count > 0 %}
+            <button type="button" onclick="filterByStatus('MISSED_TIMING')" class="status-pill px-3 py-1 rounded-lg font-bold text-rose-800 bg-rose-100 hover:bg-rose-200 border border-rose-300 transition" data-status="MISSED_TIMING">
+                <i class="fas fa-triangle-exclamation mr-1 text-rose-600"></i> Missed Timings ({{ stats.pending_missing_gap_count }})
+            </button>
+            {% endif %}
+            {% if stats.pending_mid_punch_count > 0 %}
+            <button type="button" onclick="filterByStatus('MISSED_MID')" class="status-pill px-3 py-1 rounded-lg font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition" data-status="MISSED_MID">
+                <i class="fas fa-triangle-exclamation mr-1 text-amber-600"></i> Missed Mid ({{ stats.pending_mid_punch_count }})
+            </button>
+            {% endif %}
+            {% if stats.exempt_count > 0 %}
+            <button type="button" onclick="filterByStatus('EXEMPT')" class="status-pill px-3 py-1 rounded-lg font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition" data-status="EXEMPT">
+                <i class="fas fa-shield-halved mr-1 text-purple-500"></i> Admin / Exempt ({{ stats.exempt_count }})
+            </button>
+            {% endif %}
+            <button type="button" onclick="filterByStatus('PUNCHED')" class="status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition" data-status="PUNCHED">
+                <i class="fas fa-fingerprint mr-1 text-indigo-400"></i> Punched ({{ stats.punched_count }})
+            </button>
+        </div>
+    </div>
+
+    <!-- DAILY ATTENDANCE TABLE (ALL EMPLOYEES) -->
+    <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse" id="dailyAttendanceTable">
+                <thead class="sticky top-0 z-20 bg-slate-50 border-b border-slate-200 shadow-2xs">
+                    <tr class="text-slate-600 font-bold uppercase tracking-wider text-[11px]">
+                        <th class="py-3.5 px-4">Staff Member</th>
+                        <th class="py-3.5 px-3 text-emerald-800 bg-emerald-50/50 whitespace-nowrap">
+                            <i class="fas fa-sign-in-alt mr-1 text-emerald-600"></i> First IN
+                        </th>
+                        <th class="py-3.5 px-3 text-indigo-800 bg-indigo-50/50 whitespace-nowrap">
+                            <i class="fas fa-sign-out-alt mr-1 text-indigo-600"></i> Last OUT
+                        </th>
+                        <th class="py-3.5 px-4 min-w-[280px]">
+                            <i class="fas fa-fingerprint mr-1 text-blue-600"></i> Punches & Timeline
+                        </th>
+                        <th class="py-3.5 px-3 text-center whitespace-nowrap">Hours & OT</th>
+                        <th class="py-3.5 px-3 text-center whitespace-nowrap">Status</th>
+                        <th class="py-3.5 px-4 text-center whitespace-nowrap bg-rose-50/60 text-rose-950 border-x border-rose-200/60">
+                            <i class="fas fa-clock mr-1 text-rose-600"></i> Missed Timings & 1-Click Approval
+                        </th>
+                        <th class="py-3.5 px-3 text-right whitespace-nowrap">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for rec in records %}
+                    <tr class="hover:bg-slate-50/90 transition-colors daily-row"
+                        data-search="{{ rec.emp_no }} {{ rec.first_name }} {{ rec.last_name }} {{ rec.dept_name }}"
+                        data-status="{% if rec.pending_missing_gaps and rec.pending_missing_gaps|length > 0 %}MISSED_TIMING{% elif rec.is_admin and (not rec.punch_in or rec.status == 'EXEMPT') %}EXEMPT{% elif rec.has_missed_mid_punch and rec.mid_punch_status == 'FLAGGED' %}MISSED_MID{% else %}{{ rec.status }}{% endif %}"
+                        data-punched="{{ 'true' if (rec.punches and rec.punches|length > 0) or rec.punch_in else 'false' }}"
+                        data-emp-id="{{ rec.employee_id }}">
+                        
+                        <!-- 1. STAFF MEMBER -->
+                        <td class="py-3 px-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-8 h-8 rounded-full {% if rec.is_admin %}bg-purple-100 text-purple-700 border border-purple-200{% else %}bg-slate-100 text-slate-700 border border-slate-200{% endif %} flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                                    {{ rec.first_name[0] }}{{ rec.last_name[0] }}
+                                </div>
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="font-bold text-slate-900 truncate block">{{ rec.first_name }} {{ rec.last_name }}</span>
+                                        {% if rec.is_admin %}
+                                        <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200" title="Administrator - Attendance Tracking Exempt">
+                                            <i class="fas fa-shield-halved mr-0.5 text-purple-600"></i>Admin
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                    <span class="text-[10px] font-mono text-slate-400 block">{{ rec.emp_no }} • {{ rec.dept_name }}</span>
+                                </div>
+                            </div>
+                        </td>
+                        <!-- 2. FIRST IN -->
+                        <td class="py-3 px-3 bg-emerald-50/20 whitespace-nowrap">
+                            {% if rec.punch_in %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                                <i class="fas fa-sign-in-alt text-[10px] mr-1.5 text-emerald-600"></i>
+                                {{ rec.punch_in.split(' ')[1] }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono text-slate-400 bg-slate-100 border border-slate-200">
+                                --:--:--
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 4. LAST OUT -->
+                        <td class="py-3 px-3 bg-indigo-50/20 whitespace-nowrap">
+                            {% if rec.is_on_duty %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs" title="Currently on duty (last punch was IN)">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> On Duty
+                            </span>
+                            {% elif rec.punch_out and rec.punch_out != rec.punch_in %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-indigo-50 text-indigo-800 border border-indigo-200 shadow-2xs">
+                                <i class="fas fa-sign-out-alt text-[10px] mr-1.5 text-indigo-600"></i>
+                                {{ rec.punch_out.split(' ')[1] }}
+                            </span>
+                            {% elif rec.punch_in and (not rec.punch_out or rec.punch_out == rec.punch_in) %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold text-amber-700 bg-amber-50 border border-amber-200" title="Only 1 punch recorded">
+                                <i class="fas fa-clock text-[9px] mr-1 text-amber-500"></i> No Out
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono text-slate-400 bg-slate-100 border border-slate-200">
+                                --:--:--
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 5. BIOMETRIC SCANS / TIMELINE -->
+                        <td class="py-3 px-4 min-w-[280px]">
+                            {% if rec.punches and rec.punches|length > 0 %}
+                            <div class="space-y-1.5">
+                                <div class="flex items-center space-x-1.5">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                       <i class="fas fa-fingerprint mr-1 text-indigo-600"></i>{{ rec.punches|length }} Scans
+                                    </span>
+                                    <button type="button" 
+                                            onclick="togglePunchTray('tray-{{ rec.employee_id }}')"
+                                            class="text-[10px] font-bold text-slate-700 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 px-2 py-0.5 rounded border border-slate-200 hover:border-blue-300 transition flex items-center cursor-pointer"
+                                            title="Toggle full punch timeline with edit actions">
+                                        <span>Details</span>
+                                        <i class="fas fa-chevron-down text-[8px] ml-1 text-slate-400"></i>
+                                    </button>
+                                    <button type="button" 
+                                            onclick="openManualPunchForEmp('{{ rec.employee_id }}', '{{ rec.first_name }} {{ rec.last_name }}', '{{ rec.emp_no }}', '{{ rec.dept_name }}', {{ rec.punches|length if rec.punches else 0 }}, '{{ rec.punch_out or rec.punch_in or '' }}')" 
+                                            class="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition cursor-pointer" 
+                                            title="Add a manual punch for this staff member">
+                                        <i class="fas fa-plus mr-0.5"></i> Add
+                                    </button>
+                                </div>
+                                
+                                <!-- Compact Single-Line Horizontal Punch Timeline Strip (NEVER wraps vertically!) -->
+                                <div class="flex items-center gap-1 overflow-x-auto whitespace-nowrap no-scrollbar py-0.5 max-w-[340px]">
+                                    {% for p in rec.punches %}
+                                    <button type="button" 
+                                            onclick="openEditPunchModal('{{ p.id }}', '{{ rec.first_name }} {{ rec.last_name }}', '{{ rec.emp_no }}', '{{ p.full_time }}', '{{ p.type }}')"
+                                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 hover:ring-2 hover:ring-blue-400 transition cursor-pointer
+                                                {% if loop.first %}bg-emerald-100 text-emerald-800 border border-emerald-300
+                                                {% elif loop.last and rec.punches|length > 1 %}bg-indigo-100 text-indigo-800 border border-indigo-300
+                                                {% elif loop.index % 2 == 0 %}bg-amber-100 text-amber-800 border border-amber-300
+                                                {% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}"
+                                            title="Click to Edit Timing: Punch #{{ loop.index }} ({{ p.time }})">
+                                        {{ p.time }}
+                                        <i class="fas fa-pencil text-[7px] ml-1 opacity-60"></i>
+                                    </button>
+                                    {% if not loop.last %}
+                                    <i class="fas fa-arrow-right text-[8px] text-slate-300 shrink-0"></i>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="flex items-center space-x-2">
+                                <span class="text-[11px] text-slate-400 font-mono italic">No punches</span>
+                                <button type="button" 
+                                        onclick="openManualPunchForEmp('{{ rec.employee_id }}', '{{ rec.first_name }} {{ rec.last_name }}', '{{ rec.emp_no }}', '{{ rec.dept_name }}', 0, '')" 
+                                        class="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition cursor-pointer"
+                                        title="Touch to add manual punch for this staff member">
+                                    <i class="fas fa-plus mr-0.5"></i> Add
+                                </button>
+                            </div>
+                            {% endif %}
+                        </td>
+
+                        <!-- 6. HOURS & OT -->
+                        <td class="py-3 px-3 text-center whitespace-nowrap">
+                            <span class="font-mono font-extrabold text-sm text-slate-900 block">
+                                {% if rec.work_hours > 0 %}{{ "%.2f"|format(rec.work_hours) }}h{% else %}<span class="text-slate-400 font-normal">0.0h</span>{% endif %}
+                            </span>
+                            <div class="flex items-center justify-center gap-1 flex-wrap mt-0.5">
+                                {% if rec.raw_ot_hours > 0 %}
+                                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200" 
+                                      title="{% if rec.gross_ot_hours and rec.gross_ot_hours > rec.raw_ot_hours %}Gross OT: {{ rec.gross_ot_hours }}h less {{ rec.late_deduction_mins }}m late = {{ rec.raw_ot_hours }}h Net OT{% else %}Detected Overtime: {{ rec.raw_ot_hours }}h{% endif %}">
+                                    +{{ rec.raw_ot_hours }}h OT
+                                </span>
+                                {% elif rec.gross_ot_hours and rec.gross_ot_hours > 0 and rec.raw_ot_hours == 0 %}
+                                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300" 
+                                      title="Gross OT {{ rec.gross_ot_hours }}h fully offset by {{ rec.late_deduction_mins }}m lateness">
+                                    0.0h OT (Late Offset)
+                                </span>
+                                {% endif %}
+                                {% if rec.shift_allowance_amount > 0 %}
+                                <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-200" title="Shift Allowance">
+                                    +{{ company_info.currency_symbol }}{{ "%.0f"|format(rec.shift_allowance_amount) }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% if rec.late_mins > 0 %}
+                            <span class="text-[10px] font-semibold text-amber-600 block mt-0.5">Late: {{ rec.late_mins }}m</span>
+                            {% endif %}
+                            {% if rec.early_leave_mins > 0 %}
+                            <span class="text-[10px] font-semibold text-rose-600 block mt-0.5">Early: {{ rec.early_leave_mins }}m</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 7. STATUS -->
+                        <td class="py-3 px-3 text-center whitespace-nowrap">
+                            {% if rec.is_admin and (not rec.punch_in or rec.status == 'EXEMPT') %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200" title="Administrator - Attendance Tracking Exempt">
+                                <i class="fas fa-shield-halved mr-1 text-purple-600"></i>ADMIN
+                            </span>
+                            {% elif rec.status == 'PRESENT' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span> PRESENT
+                            </span>
+                            {% elif rec.status == 'LATE' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                <i class="fas fa-clock mr-1 text-amber-500"></i> LATE
+                            </span>
+                            {% elif rec.status == 'HALF_DAY' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                                <i class="fas fa-hourglass-half mr-1 text-purple-500"></i> HALF DAY
+                            </span>
+                            {% elif rec.status in ('WEEKLY_OFF', 'HOLIDAY', 'ON_LEAVE', 'LEAVE') %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                <i class="fas fa-calendar-minus mr-1 text-indigo-500"></i> {{ rec.status.replace('_', ' ') }}
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                <i class="fas fa-times mr-1 text-rose-500"></i> ABSENT
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 8. MISSED TIMINGS & 1-CLICK APPROVAL -->
+                        <td class="py-3 px-4 text-center whitespace-nowrap bg-amber-50/20 border-x border-amber-200/50">
+                            {% if rec.is_admin %}
+                            <span class="text-slate-400 font-mono text-xs">—</span>
+                            {% elif rec.pending_missing_gaps and rec.pending_missing_gaps|length > 0 %}
+                            <div class="flex flex-col items-center gap-1.5">
+                                {% for gap in rec.pending_missing_gaps %}
+                                <div class="inline-flex items-center gap-1.5 p-1 bg-rose-50 border border-rose-300 rounded-lg shadow-2xs">
+                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-rose-100 text-rose-900 border border-rose-200" title="{{ gap.description }}">
+                                        <i class="fas fa-triangle-exclamation mr-1 text-rose-600"></i>
+                                        {% if gap.gap_type == 'MISSING_CLOCK_IN' %}Missed IN: {{ gap.expected_time[:5] }}
+                                        {% elif gap.gap_type == 'MISSING_CLOCK_OUT' %}Missed OUT: {{ gap.expected_time[:5] }}
+                                        {% elif gap.gap_type == 'MISSING_LUNCH_OUT' %}Missed Lunch: {{ gap.expected_time[:5] }}
+                                        {% elif gap.gap_type == 'MISSING_LUNCH_RETURN' %}Missed Return: {{ gap.expected_time[:5] }}
+                                        {% else %}Missed {{ gap.suggested_punch_type }}: {{ gap.expected_time[:5] }}{% endif %}
+                                    </span>
+                                    <form action="{{ url_for('attendance.approve_missing_punch', alert_id=gap.id) }}" method="POST" class="inline m-0">
+                                        <button type="submit" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition shadow-2xs cursor-pointer whitespace-nowrap flex items-center"
+                                                title="1-Click Approve {{ gap.suggested_punch_type }} at {{ gap.expected_time[:5] }}">
+                                            <i class="fas fa-check mr-1"></i> Approve ({{ gap.expected_time[:5] }})
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endfor %}
+                                {% if rec.has_missed_mid_punch and rec.mid_punch_status == 'FLAGGED' and rec.record_id %}
+                                <div class="inline-flex items-center gap-1.5 p-1 bg-amber-50 border border-amber-300 rounded-lg shadow-2xs">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-200">
+                                        <i class="fas fa-triangle-exclamation mr-1 text-amber-600"></i> Mid Punch
+                                    </span>
+                                    <form action="{{ url_for('attendance.approve_mid_punch', record_id=rec.record_id) }}" method="POST" class="inline m-0">
+                                        <button type="submit" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition shadow-2xs cursor-pointer whitespace-nowrap flex items-center">
+                                            <i class="fas fa-check mr-1"></i> Approve Salary
+                                        </button>
+                                    </form>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% elif rec.has_missed_mid_punch and rec.mid_punch_status == 'FLAGGED' %}
+                            <div class="inline-flex items-center gap-1.5 p-1 bg-amber-50 border border-amber-300 rounded-lg shadow-2xs">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-200 animate-pulse" title="{{ rec.mid_punch_notes or 'Missed intermediate break/lunch punches' }}">
+                                    <i class="fas fa-triangle-exclamation mr-1 text-amber-600"></i> Missed Mid Punch
+                                </span>
+                                {% if rec.record_id %}
+                                <form action="{{ url_for('attendance.approve_mid_punch', record_id=rec.record_id) }}" method="POST" class="inline m-0">
+                                    <button type="submit" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold transition shadow-2xs cursor-pointer whitespace-nowrap flex items-center">
+                                        <i class="fas fa-check mr-1"></i> Approve Salary
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                            {% elif rec.approved_missing_gaps and rec.approved_missing_gaps|length > 0 %}
+                            <div class="flex flex-col items-center gap-1">
+                                {% for gap in rec.approved_missing_gaps %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs" title="Approved by {{ gap.approved_by or 'Admin' }}: {{ gap.description }}">
+                                    <i class="fas fa-circle-check mr-1 text-emerald-600"></i> {{ gap.suggested_punch_type }} Approved ({{ gap.expected_time[:5] }})
+                                </span>
+                                {% endfor %}
+                                {% if rec.has_missed_mid_punch and rec.mid_punch_status == 'APPROVED' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs" title="Approved by {{ rec.mid_punch_approved_by or 'Admin' }} - Salary authorized">
+                                    <i class="fas fa-circle-check mr-1 text-emerald-600"></i> Salary Approved
+                                </span>
+                                {% endif %}
+                            </div>
+                            {% elif rec.has_missed_mid_punch and rec.mid_punch_status == 'APPROVED' %}
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs" title="Approved by {{ rec.mid_punch_approved_by or 'Admin' }} - Salary authorized">
+                                <i class="fas fa-circle-check mr-1 text-emerald-600"></i> Salary Approved
+                            </span>
+                            {% else %}
+                            <span class="text-slate-300 font-mono text-xs">—</span>
+                            {% endif %}
+                        </td>
+
+                        <!-- 9. ACTIONS -->
+                        <td class="py-3 px-3 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end space-x-1.5">
+                                <a href="{{ url_for('attendance.all_punches', date=selected_date, emp_id=rec.employee_id) }}" 
+                                   class="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition shadow-2xs" 
+                                   title="View full timecard for this date">
+                                    <i class="fas fa-chart-simple mr-1 text-blue-600"></i> Card
+                                </a>
+                                <a href="{{ url_for('employees.view_employee', emp_id=rec.employee_id) }}" 
+                                   class="inline-flex items-center px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-semibold transition" 
+                                   title="View Employee Profile">
+                                    <i class="fas fa-user text-[10px]"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- EXPANDABLE DETAILS TRAY -->
+                    {% if rec.punches and rec.punches|length > 0 %}
+                    <tr id="tray-{{ rec.employee_id }}" class="hidden bg-slate-50/80 border-b border-slate-200 punch-subrow">
+                        <td colspan="8" class="p-3 px-6">
+                            <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-2xs space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-xs font-bold text-slate-800 flex items-center">
+                                            <i class="fas fa-timeline text-indigo-500 mr-1.5"></i>
+                                            Complete Punch Sequence for {{ rec.first_name }} {{ rec.last_name }} ({{ selected_date }})
+                                        </span>
+                                        <span class="text-[11px] text-slate-400 font-mono font-semibold">({{ rec.punches|length }} Scans Logged)</span>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button type="button" 
+                                                onclick="openManualPunchForEmp('{{ rec.employee_id }}', '{{ rec.first_name }} {{ rec.last_name }}', '{{ rec.emp_no }}', '{{ rec.dept_name }}', {{ rec.punches|length }}, '{{ rec.punch_out or rec.punch_in or '' }}')" 
+                                                class="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200 transition cursor-pointer">
+                                            <i class="fas fa-plus mr-0.5"></i> Add Another Punch
+                                        </button>
+                                        <button type="button" onclick="togglePunchTray('tray-{{ rec.employee_id }}')" class="text-slate-400 hover:text-slate-600 text-xs font-bold px-1 py-0.5">
+                                            <i class="fas fa-times mr-0.5"></i> Close
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                                    {% for p in rec.punches %}
+                                    <div class="p-2 rounded-lg border text-center transition hover:shadow-2xs
+                                        {% if loop.first %}bg-emerald-50 border-emerald-200
+                                        {% elif loop.last and rec.punches|length > 1 %}bg-indigo-50 border-indigo-200
+                                        {% elif loop.index % 2 == 0 %}bg-amber-50 border-amber-200
+                                        {% else %}bg-blue-50 border-blue-200{% endif %}">
+                                        <span class="text-[9px] font-bold uppercase tracking-wider block
+                                            {% if loop.first %}text-emerald-700{% elif loop.last and rec.punches|length > 1 %}text-indigo-700{% elif loop.index % 2 == 0 %}text-amber-700{% else %}text-blue-700{% endif %}">
+                                            #{{ loop.index }} • {% if loop.first %}IN{% elif loop.last and rec.punches|length > 1 %}OUT{% elif loop.index % 2 == 0 %}BREAK OUT{% else %}BREAK IN{% endif %}
+                                        </span>
+                                        <span class="font-mono font-extrabold text-xs text-slate-800 block mt-0.5">{{ p.time }}</span>
+                                        <button type="button" 
+                                                onclick="openEditPunchModal('{{ p.id }}', '{{ rec.first_name }} {{ rec.last_name }}', '{{ rec.emp_no }}', '{{ p.full_time }}', '{{ p.type }}')"
+                                                class="mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-white text-slate-700 border border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-400 transition cursor-pointer shadow-2xs">
+                                            <i class="fas fa-pencil text-[7px] mr-1"></i> Edit
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-8 text-slate-400 italic">No employees found for {{ selected_date }}.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let currentStatusFilter = '{{ selected_status or "ALL" }}';
+
+function togglePunchTray(trayId) {
+    const tray = document.getElementById(trayId);
+    if (!tray) return;
+    tray.classList.toggle('hidden');
+}
+
+function filterDailyTable() {
+    const q = (document.getElementById('dailySearch').value || '').toLowerCase();
+    const rows = document.querySelectorAll('.daily-row');
+
+    rows.forEach(r => {
+        const text = (r.getAttribute('data-search') || '').toLowerCase();
+        const status = r.getAttribute('data-status');
+        const punched = r.getAttribute('data-punched');
+        const empId = r.getAttribute('data-emp-id');
+
+        const matchesQuery = text.includes(q);
+        let matchesStatus = true;
+
+        if (currentStatusFilter === 'PRESENT') {
+            matchesStatus = (status === 'PRESENT' || status === 'LATE' || punched === 'true') && status !== 'EXEMPT';
+        } else if (currentStatusFilter === 'LEAVE') {
+            matchesStatus = (status === 'WEEKLY_OFF' || status === 'HOLIDAY' || status === 'ON_LEAVE' || status === 'LEAVE' || status === 'HALF_DAY');
+        } else if (currentStatusFilter === 'ABSENT') {
+            matchesStatus = (status === 'ABSENT' && punched !== 'true');
+        } else if (currentStatusFilter === 'LATE') {
+            matchesStatus = (status === 'LATE');
+        } else if (currentStatusFilter === 'HALF_DAY') {
+            matchesStatus = (status === 'HALF_DAY');
+        } else if (currentStatusFilter === 'PUNCHED') {
+            matchesStatus = (punched === 'true');
+        } else if (currentStatusFilter === 'MISSED_TIMING') {
+            matchesStatus = (status === 'MISSED_TIMING');
+        } else if (currentStatusFilter === 'MISSED_MID') {
+            matchesStatus = (status === 'MISSED_MID');
+        } else if (currentStatusFilter === 'EXEMPT') {
+            matchesStatus = (status === 'EXEMPT');
+        }
+
+        const isVisible = matchesQuery && matchesStatus;
+        r.style.display = isVisible ? '' : 'none';
+
+        if (empId) {
+            const tray = document.getElementById('tray-' + empId);
+            if (tray && !isVisible) {
+                tray.classList.add('hidden');
+            }
+        }
+    });
+}
+
+function filterByStatus(status) {
+    currentStatusFilter = status;
+    
+    // Update active pill UI
+    document.querySelectorAll('.status-pill').forEach(pill => {
+        if (pill.getAttribute('data-status') === status) {
+            pill.className = 'status-pill active px-3 py-1 rounded-lg font-bold transition bg-blue-600 text-white';
+        } else {
+            pill.className = 'status-pill px-3 py-1 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition';
+        }
+    });
+
+    filterDailyTable();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (currentStatusFilter && currentStatusFilter !== 'ALL') {
+        filterByStatus(currentStatusFilter);
+    }
+});
+</script>
+
+<!-- MANUAL PUNCH ENTRY MODAL (TARGETED TO SPECIFIC PERSON) -->
+<div id="recordPunchModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-fingerprint"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm" id="indexManualPunchModalTitle">Manual Punch Entry</h3>
+                    <p class="text-[11px] text-slate-400" id="indexManualPunchModalSubtitle">No limit for this person • Immutable Audit Logged</p>
+                </div>
+            </div>
+            <button onclick="closeModal('recordPunchModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times text-lg"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('attendance.manual_punch') }}" method="POST" class="p-5 space-y-4">
+            
+            <!-- TARGET PERSON FOCUS CARD (LOCKED TO PERSON WHEN OPENED VIA ADD BUTTON) -->
+            <div id="indexManualPunchTargetBanner" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold text-sm flex items-center justify-center shadow-sm" id="indexManualPunchAvatar">
+                        --
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="font-extrabold text-slate-900 text-sm" id="indexManualPunchTargetName">Employee Name</span>
+                            <span class="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-blue-200 text-blue-900" id="indexManualPunchTargetEmpNo">EMP0000</span>
+                        </div>
+                        <span class="text-xs text-slate-600 block mt-0.5" id="indexManualPunchTargetDept">Department</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300" id="indexManualPunchNextNumBadge">
+                        New Punch #--
+                    </span>
+                    <span class="block text-[10px] text-slate-500 font-semibold mt-0.5">
+                        <i class="fas fa-infinity text-blue-500 mr-0.5"></i> No Limit
+                    </span>
+                </div>
+            </div>
+
+            <!-- HIDDEN LOCKED EMPLOYEE ID FOR STRICT TARGETING -->
+            <input type="hidden" name="employee_id" id="indexManualPunchEmpId" value="">
+
+            <!-- FALLBACK SELECTOR IF OPENED WITHOUT PRESELECTED PERSON -->
+            <div id="indexManualPunchSelectContainer" class="hidden">
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Select Staff Member</label>
+                <select id="indexManualPunchFallbackSelect" onchange="syncIndexManualPunchTarget(this)" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                    {% for emp in active_employees %}
+                    <option value="{{ emp.id }}" data-name="{{ emp.first_name }} {{ emp.last_name }}" data-no="{{ emp.emp_no }}">{{ emp.emp_no }} - {{ emp.first_name }} {{ emp.last_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- PUNCH DIRECTION SELECTOR -->
+            <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Punch Direction / Nature
+                </label>
+                <div class="grid grid-cols-2 gap-3">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="punch_type" id="indexPunchTypeIn" value="IN" checked class="peer sr-only">
+                        <div class="p-2.5 text-center rounded-xl border-2 border-slate-200 peer-checked:border-emerald-500 peer-checked:bg-emerald-50 text-slate-600 peer-checked:text-emerald-800 transition font-bold text-xs flex items-center justify-center space-x-2 shadow-2xs">
+                            <i class="fas fa-sign-in-alt text-emerald-600 text-sm"></i>
+                            <span>Punch IN</span>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="punch_type" id="indexPunchTypeOut" value="OUT" class="peer sr-only">
+                        <div class="p-2.5 text-center rounded-xl border-2 border-slate-200 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 text-slate-600 peer-checked:text-indigo-800 transition font-bold text-xs flex items-center justify-center space-x-2 shadow-2xs">
+                            <i class="fas fa-sign-out-alt text-indigo-600 text-sm"></i>
+                            <span>Punch OUT</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- DATE & EXACT TIME -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                    <input type="date" name="date" id="indexManualPunchDate" value="{{ selected_date }}" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-semibold">
+                </div>
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-xs font-semibold text-slate-600">Time (HH:MM:SS)</label>
+                        <button type="button" onclick="setIndexManualPunchTimeNow()" class="text-[10px] font-bold text-blue-600 hover:underline">Set Now</button>
+                    </div>
+                    <input type="time" step="1" name="time" id="indexManualPunchTime" value="09:00:00" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-mono font-semibold">
+                </div>
+            </div>
+
+            <!-- QUICK SHIFT TIME PRESETS -->
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Quick Factory Timing Presets:</span>
+                <div class="flex flex-wrap gap-1 text-[10px]">
+                    <button type="button" onclick="setIndexManualTime('09:00:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 border border-slate-200 font-mono">09:00 (In)</button>
+                    <button type="button" onclick="setIndexManualTime('11:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 hover:text-amber-800 border border-slate-200 font-mono">11:00 (Tea Out)</button>
+                    <button type="button" onclick="setIndexManualTime('11:15:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-800 border border-slate-200 font-mono">11:15 (Tea In)</button>
+                    <button type="button" onclick="setIndexManualTime('13:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 hover:text-amber-800 border border-slate-200 font-mono">13:00 (Lunch Out)</button>
+                    <button type="button" onclick="setIndexManualTime('14:00:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-800 border border-slate-200 font-mono">14:00 (Lunch In)</button>
+                    <button type="button" onclick="setIndexManualTime('16:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-amber-50 hover:text-amber-800 border border-slate-200 font-mono">16:00 (Break Out)</button>
+                    <button type="button" onclick="setIndexManualTime('16:15:00', 'IN')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-800 border border-slate-200 font-mono">16:15 (Break In)</button>
+                    <button type="button" onclick="setIndexManualTime('18:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-800 border border-slate-200 font-mono">18:00 (Shift Out)</button>
+                    <button type="button" onclick="setIndexManualTime('19:00:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-purple-50 hover:text-purple-800 border border-slate-200 font-mono">19:00 (OT 1 Out)</button>
+                    <button type="button" onclick="setIndexManualTime('21:15:00', 'OUT')" class="px-2 py-0.5 rounded bg-slate-100 hover:bg-purple-50 hover:text-purple-800 border border-slate-200 font-mono">21:15 (OT 2 Out)</button>
+                </div>
+            </div>
+
+            <!-- MANDATORY AUDIT REASON WITH QUICK CHIPS -->
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Mandatory Reason / Justification <span class="text-rose-500">*</span>
+                </label>
+                <div class="flex flex-wrap gap-1 mb-1.5 text-[10px]">
+                    <button type="button" onclick="setIndexManualReason('Missed biometric scan on terminal')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Missed scan</button>
+                    <button type="button" onclick="setIndexManualReason('Fingerprint scan not recognized by device')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Fingerprint error</button>
+                    <button type="button" onclick="setIndexManualReason('Working on packaging & printing press machine line')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Press duty</button>
+                    <button type="button" onclick="setIndexManualReason('Authorized overtime duty continuation')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Authorized OT</button>
+                    <button type="button" onclick="setIndexManualReason('Out for delivery / dispatch errand')" class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200">Delivery errand</button>
+                </div>
+                <textarea name="reason" id="indexManualPunchReason" rows="2" required placeholder="e.g., Missed punch on terminal, Gate duty, Finger scan failed"
+                          class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white"></textarea>
+                <p class="text-[10px] text-slate-400 mt-0.5">Required under statutory compliance. Recorded permanently in Punch Audit Log.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Authorized By</label>
+                <input type="text" name="edited_by" value="Supervisor / HR Manager" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <!-- MODAL ACTIONS -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 font-medium">
+                    <i class="fas fa-user-check text-emerald-500 mr-1"></i> Targeted to selected staff
+                </span>
+                <div class="flex items-center space-x-2">
+                    <button type="button" onclick="closeModal('recordPunchModal')" class="px-3.5 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Cancel
+                    </button>
+                    <button type="submit" id="indexManualPunchSubmitBtn" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-bold text-white shadow-sm flex items-center space-x-1.5 transition">
+                        <i class="fas fa-check"></i>
+                        <span id="indexManualPunchSubmitLabel">Save Manual Punch</span>
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- BIOMETRIC LOG IMPORTER MODAL -->
+<div id="importLogsModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-upload text-blue-400"></i>
+                <h3 class="font-bold text-sm">Import Biometric Punch Logs</h3>
+            </div>
+            <button onclick="closeModal('importLogsModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('attendance.import_logs') }}" method="POST" enctype="multipart/form-data" class="p-5 space-y-4">
+            <p class="text-xs text-slate-500">
+                Upload a CSV export or paste punch raw lines from your biometric / ZKTeco device. Format:
+                <code class="bg-slate-100 px-1 py-0.5 rounded text-blue-600 block mt-1">EMP_NO, YYYY-MM-DD HH:MM:SS, IN/OUT</code>
+            </p>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Upload CSV File</label>
+                <input type="file" name="csv_file" accept=".csv,text/plain" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            </div>
+
+            <div class="text-center text-xs text-slate-400 font-semibold uppercase tracking-wider">— OR Paste Lines —</div>
+
+            <div>
+                <textarea name="raw_text" rows="5" placeholder="EMP1001, 2026-09-08 05:50:00, IN&#10;EMP1001, 2026-09-08 14:15:00, OUT&#10;EMP1003, 2026-09-08 21:55:00, IN&#10;EMP1003, 2026-09-09 06:20:00, OUT" 
+                          class="w-full text-xs font-mono rounded-lg border-slate-300 py-2 px-3 bg-slate-50"></textarea>
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button type="button" onclick="closeModal('importLogsModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                    Process & Evaluate Logs
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- BIOMETRIC DEVICE CONFIGURATION MODAL -->
+<div id="biometricConfigModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-network-wired text-blue-400"></i>
+                <h3 class="font-bold text-sm">Biometric Machine Settings</h3>
+            </div>
+            <button onclick="closeModal('biometricConfigModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <form action="{{ url_for('attendance.sync_machine') }}" method="POST" class="p-5 space-y-4">
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Terminal IP Address</label>
+                <input type="text" name="device_ip" id="deviceIpInput" value="192.168.101.201" required class="w-full text-xs font-mono font-bold rounded-lg border-slate-300 py-2 px-3">
+                <p class="text-[11px] text-slate-400 mt-1">Configured for your LAN ZKTeco device (default port 4370).</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Sync Days Range</label>
+                <select name="days_back" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+                    <option value="1">Today's punches only</option>
+                    <option value="7">Past 7 days</option>
+                    <option value="30" selected>Past 30 days</option>
+                    <option value="90">Past 90 days</option>
+                </select>
+            </div>
+
+            <div id="deviceTestResult" class="hidden p-2.5 rounded-lg text-xs"></div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="testMachineConnection()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">
+                    <i class="fas fa-plug-circle-bolt mr-1"></i> Test Ping
+                </button>
+                <div class="flex space-x-2">
+                    <button type="button" onclick="closeModal('biometricConfigModal')" class="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Close
+                    </button>
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-bold text-white shadow-sm">
+                        Sync Now
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- EDIT PUNCH MODAL -->
+<div id="editPunchModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-pen-to-square text-amber-400"></i>
+                <h3 class="font-bold text-sm">Edit Punch Timing & Type</h3>
+            </div>
+            <button onclick="closeModal('editPunchModal')" class="text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="px-5 py-2.5 bg-amber-50 border-b border-amber-100 flex items-center space-x-2 text-xs text-amber-800">
+            <i class="fas fa-lock text-amber-600"></i>
+            <span><strong>Compliance Notice:</strong> Punches cannot be deleted. Any edit will be permanently recorded with the reason in the <a href="{{ url_for('attendance.audit_log') }}" class="underline font-bold" target="_blank">Audit Log</a>.</span>
+        </div>
+
+        <form id="editPunchForm" method="POST" class="p-5 space-y-4">
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-slate-500 font-semibold">Staff Member:</span>
+                    <span class="font-bold text-slate-800" id="editPunchStaffName">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 font-semibold">Employee ID:</span>
+                    <span class="font-mono font-bold text-blue-600" id="editPunchEmpNo">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500 font-semibold">Current Stored Timestamp:</span>
+                    <span class="font-mono font-bold text-slate-700" id="editPunchCurrentTime">--</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    New Exact Timestamp (YYYY-MM-DD HH:MM:SS) <span class="text-rose-500">*</span>
+                </label>
+                <input type="text" name="new_time" id="editPunchNewTime" required 
+                       class="w-full text-xs font-mono font-bold rounded-lg border-slate-300 py-2 px-3 bg-white focus:border-blue-500">
+                <p class="text-[10px] text-slate-400 mt-1">Format: 24-hour timestamp (e.g. 2026-09-08 09:05:00)</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Punch Nature / Type</label>
+                <select name="punch_type" id="editPunchType" class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 font-semibold">
+                    <option value="IN">IN (Clock IN)</option>
+                    <option value="OUT">OUT (Clock OUT)</option>
+                    <option value="PUNCH">PUNCH (Standard Biometric)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">
+                    Mandatory Reason for Edit <span class="text-rose-500">*</span>
+                </label>
+                <textarea name="reason" rows="2" required placeholder="State exact reason for adjusting this punch timing (e.g. Machine time drift, Supervisor verified delay)..."
+                          class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white"></textarea>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Authorized By</label>
+                <input type="text" name="edited_by" value="Supervisor / HR Manager" required class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="triggerDeleteFromEditModal()" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition flex items-center shadow-2xs">
+                    <i class="fas fa-trash-can mr-1.5 text-rose-600"></i> Delete Punch
+                </button>
+                <div class="flex space-x-2">
+                    <button type="button" onclick="closeModal('editPunchModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-xs font-bold text-white shadow-sm">
+                        <i class="fas fa-save mr-1"></i> Update & Log
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- DELETE PUNCH CONFIRMATION MODAL -->
+<div id="deletePunchModal" class="modal-container fixed inset-0 z-50 hidden items-center justify-center modal-backdrop p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+        <div class="px-5 py-4 bg-rose-600 text-white flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center text-white font-bold">
+                    <i class="fas fa-trash-can"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Delete Attendance Punch</h3>
+                    <p class="text-[11px] text-rose-100">Permanent removal with mandatory audit logging</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('deletePunchModal')" class="text-white/80 hover:text-white text-lg">&times;</button>
+        </div>
+
+        <form id="deletePunchForm" method="POST" class="p-5 space-y-4">
+            <div class="bg-rose-50 border border-rose-200 p-3 rounded-xl text-xs space-y-1">
+                <div class="flex justify-between">
+                    <span class="text-rose-700 font-semibold">Staff Member:</span>
+                    <span class="font-bold text-slate-800" id="deletePunchStaffName">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-rose-700 font-semibold">Employee ID:</span>
+                    <span class="font-mono font-bold text-slate-800" id="deletePunchEmpNo">--</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-rose-700 font-semibold">Punch Timestamp:</span>
+                    <span class="font-mono font-bold text-rose-800" id="deletePunchTime">--</span>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">
+                    Mandatory Reason for Deletion <span class="text-rose-500">*</span>
+                </label>
+                <textarea name="reason" id="deletePunchReason" rows="2" required 
+                          placeholder="State justification reason (e.g. Accidental double scan, Ghost scan, Left without permission)..."
+                          class="w-full text-xs rounded-lg border-slate-300 py-2 px-3 bg-slate-50 focus:bg-white focus:border-rose-500"></textarea>
+                
+                <!-- Quick Reason Presets -->
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                    <button type="button" onclick="setDeleteReason('Accidental duplicate swipe')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Accidental double swipe</button>
+                    <button type="button" onclick="setDeleteReason('Ghost scan / terminal drift')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Ghost scan</button>
+                    <button type="button" onclick="setDeleteReason('Wrong employee card scanned')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Wrong staff card</button>
+                    <button type="button" onclick="setDeleteReason('Unauthorized checkout')" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">Unauthorized checkout</button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Authorized Supervisor / Manager <span class="text-rose-500">*</span></label>
+                <input type="text" name="edited_by" value="Supervisor / HR Manager" required 
+                       class="w-full text-xs rounded-lg border-slate-300 py-2 px-3">
+            </div>
+
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="closeModal('deletePunchModal')" class="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                    Cancel
+                </button>
+                <button type="submit" class="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white shadow-sm flex items-center">
+                    <i class="fas fa-trash-can mr-1.5"></i> Confirm Delete & Log
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openManualPunchForEmp(empId, empName, empNo, deptName, punchCount, lastPunchTime) {
+    document.getElementById('indexManualPunchEmpId').value = empId;
+    
+    if (empName) {
+        document.getElementById('indexManualPunchTargetName').innerText = empName;
+        document.getElementById('indexManualPunchTargetEmpNo').innerText = empNo || '';
+        document.getElementById('indexManualPunchTargetDept').innerText = (deptName || 'Staff Member') + (lastPunchTime ? ' • Last: ' + lastPunchTime : '');
+        
+        const initials = empName.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        document.getElementById('indexManualPunchAvatar').innerText = initials || 'EM';
+        
+        const count = parseInt(punchCount) || 0;
+        const nextNum = count + 1;
+        document.getElementById('indexManualPunchNextNumBadge').innerText = 'New Punch #' + nextNum;
+        document.getElementById('indexManualPunchSubmitLabel').innerText = 'Save Punch #' + nextNum + ' for ' + empName.split(' ')[0];
+        document.getElementById('indexManualPunchModalTitle').innerText = 'Add Manual Punch: ' + empName;
+        document.getElementById('indexManualPunchModalSubtitle').innerText = 'Recording punch entry #' + nextNum + ' for this person (No Limit)';
+        
+        // Smart toggle punch direction: if 0 punches or even number, IN; if odd, OUT
+        if (count === 0) {
+            document.getElementById('indexPunchTypeIn').checked = true;
+        } else if (count % 2 === 1) {
+            document.getElementById('indexPunchTypeOut').checked = true;
+        } else {
+            document.getElementById('indexPunchTypeIn').checked = true;
+        }
+        
+        document.getElementById('indexManualPunchTargetBanner').classList.remove('hidden');
+        document.getElementById('indexManualPunchSelectContainer').classList.add('hidden');
+    } else {
+        const sel = document.getElementById('indexManualPunchFallbackSelect');
+        document.getElementById('indexManualPunchTargetBanner').classList.add('hidden');
+        document.getElementById('indexManualPunchSelectContainer').classList.remove('hidden');
+        document.getElementById('indexManualPunchModalTitle').innerText = 'Manual Punch Entry';
+        document.getElementById('indexManualPunchModalSubtitle').innerText = 'Select a staff member to record punch entry (No Limit)';
+        document.getElementById('indexManualPunchSubmitLabel').innerText = 'Save Manual Punch';
+        if (sel) {
+            document.getElementById('indexManualPunchEmpId').value = sel.value;
+        }
+    }
+    
+    setIndexManualPunchTimeNow();
+    openModal('recordPunchModal');
+}
+
+function syncIndexManualPunchTarget(selectElem) {
+    document.getElementById('indexManualPunchEmpId').value = selectElem.value;
+}
+
+function setIndexManualPunchTimeNow() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    document.getElementById('indexManualPunchTime').value = `${h}:${m}:${s}`;
+}
+
+function setIndexManualTime(timeStr, punchType) {
+    document.getElementById('indexManualPunchTime').value = timeStr;
+    if (punchType === 'IN') {
+        document.getElementById('indexPunchTypeIn').checked = true;
+    } else if (punchType === 'OUT') {
+        document.getElementById('indexPunchTypeOut').checked = true;
+    }
+}
+
+function setIndexManualReason(reasonStr) {
+    document.getElementById('indexManualPunchReason').value = reasonStr;
+}
+
+let currentEditPunchId = null;
+let currentEditStaffName = '';
+let currentEditEmpNo = '';
+let currentEditPunchTime = '';
+
+function openEditPunchModal(punchId, staffName, empNo, currTime, currType) {
+    currentEditPunchId = punchId;
+    currentEditStaffName = staffName;
+    currentEditEmpNo = empNo;
+    currentEditPunchTime = currTime;
+
+    document.getElementById('editPunchStaffName').innerText = staffName;
+    document.getElementById('editPunchEmpNo').innerText = empNo;
+    document.getElementById('editPunchCurrentTime').innerText = currTime;
+    document.getElementById('editPunchNewTime').value = currTime;
+    
+    const typeSelect = document.getElementById('editPunchType');
+    if (typeSelect) {
+        typeSelect.value = currType || 'PUNCH';
+    }
+    
+    const form = document.getElementById('editPunchForm');
+    form.action = '/attendance/edit-punch/' + punchId;
+    
+    openModal('editPunchModal');
+}
+
+function triggerDeleteFromEditModal() {
+    closeModal('editPunchModal');
+    openDeletePunchModal(currentEditPunchId, currentEditStaffName, currentEditEmpNo, currentEditPunchTime);
+}
+
+function openDeletePunchModal(punchId, staffName, empNo, punchTime) {
+    document.getElementById('deletePunchStaffName').innerText = staffName;
+    document.getElementById('deletePunchEmpNo').innerText = empNo;
+    document.getElementById('deletePunchTime').innerText = punchTime;
+    document.getElementById('deletePunchReason').value = '';
+    
+    const form = document.getElementById('deletePunchForm');
+    form.action = '/attendance/delete-punch/' + punchId;
+    
+    openModal('deletePunchModal');
+}
+
+function setDeleteReason(reason) {
+    document.getElementById('deletePunchReason').value = reason;
+}
+
+function testMachineConnection() {
+    const ip = document.getElementById('deviceIpInput').value;
+    const resDiv = document.getElementById('deviceTestResult');
+    resDiv.className = 'p-2.5 rounded-lg text-xs bg-blue-50 text-blue-800 border border-blue-200 block';
+    resDiv.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Connecting to terminal at ' + ip + '...';
+
+    fetch('/attendance/test-machine?ip=' + encodeURIComponent(ip))
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                resDiv.className = 'p-2.5 rounded-lg text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 block';
+                resDiv.innerHTML = `<i class="fas fa-check-circle mr-1 text-emerald-600"></i> Connected! Device: <strong>${data.device_name}</strong> (S/N: ${data.serial_number}) | <strong>${data.users_count} users</strong> | <strong>${data.logs_count} logs</strong>`;
+            } else {
+                resDiv.className = 'p-2.5 rounded-lg text-xs bg-rose-50 text-rose-800 border border-rose-200 block';
+                resDiv.innerHTML = `<i class="fas fa-times-circle mr-1 text-rose-600"></i> Connection failed: ${data.error}`;
+            }
+        })
+        .catch(err => {
+            resDiv.className = 'p-2.5 rounded-lg text-xs bg-rose-50 text-rose-800 border border-rose-200 block';
+            resDiv.innerHTML = '<i class="fas fa-times-circle mr-1 text-rose-600"></i> Network error testing terminal.';
+        });
+}
+
+// =========================================================================
+// 1-MINUTE BIOMETRIC AUTO-SYNC CONTROLLER
+// =========================================================================
+let currentCountdown = parseInt("{{ auto_sync_status.next_sync_in_seconds }}") || 60;
+let isAutoSyncEnabled = {% if auto_sync_status.enabled %}true{% else %}false{% endif %};
+let isCurrentlySyncing = false;
+
+function updateAutoSyncUI(status) {
+    isAutoSyncEnabled = status.enabled;
+    isCurrentlySyncing = status.is_syncing;
+
+    // Status pill
+    const pill = document.getElementById('autoSyncStatusPill');
+    const dot = document.getElementById('autoSyncDot');
+    const titleText = document.getElementById('autoSyncTitleText');
+    if (pill && dot && titleText) {
+        if (status.is_syncing) {
+            pill.className = 'inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40';
+            dot.className = 'w-2 h-2 rounded-full bg-blue-400 animate-spin';
+            titleText.innerText = 'Syncing Real Punches...';
+        } else if (status.enabled) {
+            pill.className = 'inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+            dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+            titleText.innerText = 'Auto-Sync Active (Every 1 Min)';
+        } else {
+            pill.className = 'inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40';
+            dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+            titleText.innerText = 'Auto-Sync Paused';
+        }
+    }
+
+    // Toggle button
+    const toggleIcon = document.getElementById('toggleAutoSyncIcon');
+    const toggleText = document.getElementById('toggleAutoSyncText');
+    if (toggleIcon && toggleText) {
+        if (status.enabled) {
+            toggleIcon.className = 'fas fa-pause text-amber-400 mr-1.5';
+            toggleText.innerText = 'Pause Auto-Sync';
+        } else {
+            toggleIcon.className = 'fas fa-play text-emerald-400 mr-1.5';
+            toggleText.innerText = 'Resume Auto-Sync';
+        }
+    }
+
+    // Last message
+    const msgEl = document.getElementById('autoSyncLastMessage');
+    if (msgEl && status.last_message) {
+        msgEl.innerText = status.last_message;
+        msgEl.title = status.last_message;
+    }
+
+    // Countdown seconds from server
+    if (typeof status.next_sync_in_seconds === 'number') {
+        currentCountdown = status.next_sync_in_seconds;
+    }
+}
+
+function tickCountdown() {
+    const secEl = document.getElementById('autoSyncSeconds');
+    if (!secEl) return;
+
+    if (!isAutoSyncEnabled) {
+        secEl.innerText = 'Paused';
+        return;
+    }
+
+    if (isCurrentlySyncing) {
+        secEl.innerText = 'Syncing...';
+        return;
+    }
+
+    if (currentCountdown > 0) {
+        currentCountdown--;
+        secEl.innerText = currentCountdown + 's';
+    } else {
+        secEl.innerText = 'Syncing...';
+    }
+}
+
+function pollAutoSyncStatus() {
+    fetch('/attendance/auto-sync-status')
+        .then(r => r.json())
+        .then(data => {
+            updateAutoSyncUI(data);
+        })
+        .catch(() => {});
+}
+
+function triggerManualSync() {
+    const btn = document.getElementById('manualSyncBtn');
+    const icon = document.getElementById('manualSyncIcon');
+    const text = document.getElementById('manualSyncText');
+    if (btn) btn.disabled = true;
+    if (icon) icon.className = 'fas fa-spinner fa-spin mr-1.5';
+    if (text) text.innerText = 'Syncing...';
+    isCurrentlySyncing = true;
+
+    fetch('/attendance/trigger-sync', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        isCurrentlySyncing = false;
+        updateAutoSyncUI(data);
+        if (btn) btn.disabled = false;
+        if (icon) icon.className = 'fas fa-arrows-rotate mr-1.5';
+        if (text) text.innerText = 'Sync Real Punches';
+        
+        // Reload page to display any newly synced punches
+        window.location.reload();
+    })
+    .catch(() => {
+        isCurrentlySyncing = false;
+        if (btn) btn.disabled = false;
+        if (icon) icon.className = 'fas fa-arrows-rotate mr-1.5';
+        if (text) text.innerText = 'Sync Real Punches';
+    });
+}
+
+function toggleAutoSync() {
+    const btn = document.getElementById('toggleAutoSyncBtn');
+    if (btn) btn.disabled = true;
+
+    fetch('/attendance/toggle-auto-sync', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Accept': 'application/json'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (btn) btn.disabled = false;
+        updateAutoSyncUI(data);
+    })
+    .catch(() => {
+        if (btn) btn.disabled = false;
+    });
+}
+
+// Start timers on page load
+setInterval(tickCountdown, 1000);
+setInterval(pollAutoSyncStatus, 5000);
+</script>
+{% endblock %}
+

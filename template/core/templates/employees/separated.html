@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block title %}Exits, Disciplinary & Deletion Records | ApexHRMS{% endblock %}
+{% block header_title %}Employee Exits, Disciplinary & Deletion Records{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- TOP HEADER -->
+    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center space-x-2">
+                <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
+                    <i class="fas fa-folder-tree"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-black text-slate-800">Separated & Disciplinary Staff Register</h2>
+                    <p class="text-xs text-slate-400">Official log for Relieved, Suspended, NCNS personnel, and Permanent Deletion Audit Trails</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <a href="{{ url_for('employees.list_employees') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs flex items-center">
+                <i class="fas fa-users mr-1.5"></i> Active Workforce Directory
+            </a>
+            <a href="{{ url_for('settlement.final_settlement') }}" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center">
+                <i class="fas fa-calculator mr-1.5 text-indigo-600"></i> Final Settlements
+            </a>
+        </div>
+    </div>
+
+    <!-- METRIC SUMMARY CARDS -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Relieved Card -->
+        <a href="{{ url_for('employees.separated_employees', tab='relieved') }}" 
+           class="p-4 rounded-xl border transition {% if active_tab == 'relieved' %}bg-indigo-50/70 border-indigo-300 ring-2 ring-indigo-500/20{% else %}bg-white border-slate-200 hover:border-slate-300 shadow-xs{% endif %}">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-700">Relieved Staff</span>
+                <div class="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs">
+                    <i class="fas fa-user-check"></i>
+                </div>
+            </div>
+            <h3 class="text-2xl font-black text-slate-800 mt-2">{{ counts.relieved }}</h3>
+            <span class="text-[11px] text-slate-400">Resigned / Completed clearance</span>
+        </a>
+
+        <!-- Suspended Card -->
+        <a href="{{ url_for('employees.separated_employees', tab='suspended') }}" 
+           class="p-4 rounded-xl border transition {% if active_tab == 'suspended' %}bg-amber-50/70 border-amber-300 ring-2 ring-amber-500/20{% else %}bg-white border-slate-200 hover:border-slate-300 shadow-xs{% endif %}">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-700">Suspended Staff</span>
+                <div class="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-xs">
+                    <i class="fas fa-ban"></i>
+                </div>
+            </div>
+            <h3 class="text-2xl font-black text-slate-800 mt-2">{{ counts.suspended }}</h3>
+            <span class="text-[11px] text-slate-400">Disciplinary inquiry active</span>
+        </a>
+
+        <!-- No Call No Show Card -->
+        <a href="{{ url_for('employees.separated_employees', tab='ncns') }}" 
+           class="p-4 rounded-xl border transition {% if active_tab == 'ncns' %}bg-rose-50/70 border-rose-300 ring-2 ring-rose-500/20{% else %}bg-white border-slate-200 hover:border-slate-300 shadow-xs{% endif %}">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-rose-700">No Call No Show</span>
+                <div class="w-7 h-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center text-xs">
+                    <i class="fas fa-phone-slash"></i>
+                </div>
+            </div>
+            <h3 class="text-2xl font-black text-slate-800 mt-2">{{ counts.ncns }}</h3>
+            <span class="text-[11px] text-slate-400">Continuous unauthorized absence</span>
+        </a>
+
+        <!-- Deletion Audit Log Card -->
+        <a href="{{ url_for('employees.separated_employees', tab='deleted') }}" 
+           class="p-4 rounded-xl border transition {% if active_tab == 'deleted' %}bg-slate-100 border-slate-400 ring-2 ring-slate-500/20{% else %}bg-white border-slate-200 hover:border-slate-300 shadow-xs{% endif %}">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-700">Deletion Audit Log</span>
+                <div class="w-7 h-7 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center text-xs">
+                    <i class="fas fa-trash-can"></i>
+                </div>
+            </div>
+            <h3 class="text-2xl font-black text-slate-800 mt-2">{{ counts.deleted }}</h3>
+            <span class="text-[11px] text-slate-400">Permanently archived profiles</span>
+        </a>
+    </div>
+
+    <!-- TABS & FILTER BAR -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Tabs -->
+            <div class="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                <a href="{{ url_for('employees.separated_employees', tab='relieved') }}" 
+                   class="px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center {% if active_tab == 'relieved' %}bg-indigo-600 text-white shadow-xs{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+                    <i class="fas fa-user-check mr-1.5"></i>
+                    Relieved Staff ({{ counts.relieved }})
+                </a>
+                <a href="{{ url_for('employees.separated_employees', tab='suspended') }}" 
+                   class="px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center {% if active_tab == 'suspended' %}bg-amber-600 text-white shadow-xs{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+                    <i class="fas fa-ban mr-1.5"></i>
+                    Suspended ({{ counts.suspended }})
+                </a>
+                <a href="{{ url_for('employees.separated_employees', tab='ncns') }}" 
+                   class="px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center {% if active_tab == 'ncns' %}bg-rose-600 text-white shadow-xs{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+                    <i class="fas fa-phone-slash mr-1.5"></i>
+                    No Call No Show ({{ counts.ncns }})
+                </a>
+                <a href="{{ url_for('employees.separated_employees', tab='deleted') }}" 
+                   class="px-3.5 py-2 rounded-lg text-xs font-bold transition flex items-center {% if active_tab == 'deleted' %}bg-slate-900 text-white shadow-xs{% else %}text-slate-600 hover:bg-slate-100{% endif %}">
+                    <i class="fas fa-trash-can mr-1.5"></i>
+                    Deletion Audit Log ({{ counts.deleted }})
+                </a>
+            </div>
+
+            <!-- Search -->
+            <form method="GET" action="{{ url_for('employees.separated_employees') }}" class="flex items-center space-x-2 w-full md:w-auto">
+                <input type="hidden" name="tab" value="{{ active_tab }}">
+                <div class="relative w-full md:w-64">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                    <input type="text" name="q" value="{{ search_term }}" placeholder="Search in this tab..." 
+                           class="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border-slate-300 focus:border-blue-500 focus:ring-blue-500 bg-slate-50">
+                </div>
+                {% if search_term %}
+                <a href="{{ url_for('employees.separated_employees', tab=active_tab) }}" class="text-xs text-rose-600 hover:text-rose-800 font-bold px-2">
+                    Clear
+                </a>
+                {% endif %}
+            </form>
+        </div>
+
+        <!-- TAB CONTENT 1: RELIEVED EMPLOYEES -->
+        {% if active_tab == 'relieved' %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Emp No</th>
+                        <th class="py-3 px-4">Employee</th>
+                        <th class="py-3 px-4">Department & Role</th>
+                        <th class="py-3 px-4">Relieved Date</th>
+                        <th class="py-3 px-4">Exit Reason</th>
+                        <th class="py-3 px-4 text-center">Settlement Status</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for emp in relieved_list %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4 font-mono font-bold text-slate-700">{{ emp.emp_no }}</td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-bold text-slate-800 block text-sm">{{ emp.first_name }} {{ emp.last_name }}</span>
+                            <span class="text-[11px] text-slate-400">{{ emp.phone or emp.email }}</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-semibold text-slate-700 block">{{ emp.designation }}</span>
+                            <span class="text-[11px] text-slate-500">{{ emp.dept_name }}</span>
+                        </td>
+                        <td class="py-3.5 px-4 font-mono text-slate-700 font-semibold">
+                            {{ emp.status_date or 'N/A' }}
+                        </td>
+                        <td class="py-3.5 px-4 text-slate-600 italic">
+                            {{ emp.status_reason or 'Resignation / Clearance Completed' }}
+                        </td>
+                        <td class="py-3.5 px-4 text-center">
+                            {% if emp.settlement_id %}
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <i class="fas fa-check-circle mr-1"></i> Settled ({{ company_info.currency_symbol }}{{ "%.2f"|format(emp.net_settlement_amount) }})
+                            </span>
+                            {% else %}
+                            <a href="{{ url_for('settlement.final_settlement', employee_id=emp.id) }}" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition">
+                                <i class="fas fa-clock mr-1"></i> Pending Settlement ↗
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td class="py-3.5 px-4 text-right space-x-1.5">
+                            <a href="{{ url_for('employees.view_employee', emp_id=emp.id) }}" class="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition">
+                                Profile
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-10 text-slate-400 italic">No relieved employees recorded.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TAB CONTENT 2: SUSPENDED EMPLOYEES -->
+        {% elif active_tab == 'suspended' %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Emp No</th>
+                        <th class="py-3 px-4">Employee</th>
+                        <th class="py-3 px-4">Department & Role</th>
+                        <th class="py-3 px-4">Suspension Effective</th>
+                        <th class="py-3 px-4">Disciplinary Reason / Inquiry Notes</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for emp in suspended_list %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4 font-mono font-bold text-amber-700">{{ emp.emp_no }}</td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-bold text-slate-800 block text-sm">{{ emp.first_name }} {{ emp.last_name }}</span>
+                            <span class="text-[11px] text-slate-400">{{ emp.phone }}</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-semibold text-slate-700 block">{{ emp.designation }}</span>
+                            <span class="text-[11px] text-slate-500">{{ emp.dept_name }}</span>
+                        </td>
+                        <td class="py-3.5 px-4 font-mono text-amber-800 font-bold">
+                            {{ emp.status_date or 'N/A' }}
+                        </td>
+                        <td class="py-3.5 px-4 text-slate-700">
+                            {{ emp.status_reason or 'Disciplinary inquiry under factory safety regulations' }}
+                        </td>
+                        <td class="py-3.5 px-4 text-right space-x-1.5">
+                            <a href="{{ url_for('employees.view_employee', emp_id=emp.id) }}" class="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition">
+                                Profile & Actions
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-10 text-slate-400 italic">No employees currently under suspension.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TAB CONTENT 3: NO CALL NO SHOW EMPLOYEES -->
+        {% elif active_tab == 'ncns' %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Emp No</th>
+                        <th class="py-3 px-4">Employee</th>
+                        <th class="py-3 px-4">Department</th>
+                        <th class="py-3 px-4">Incident / Absent Since</th>
+                        <th class="py-3 px-4">Abandonment / Absence Notes</th>
+                        <th class="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for emp in ncns_list %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4 font-mono font-bold text-rose-700">{{ emp.emp_no }}</td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-bold text-slate-800 block text-sm">{{ emp.first_name }} {{ emp.last_name }}</span>
+                            <span class="text-[11px] text-slate-400">{{ emp.phone }}</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-semibold text-slate-700 block">{{ emp.designation }}</span>
+                            <span class="text-[11px] text-slate-500">{{ emp.dept_name }}</span>
+                        </td>
+                        <td class="py-3.5 px-4 font-mono text-rose-700 font-bold">
+                            {{ emp.status_date or 'N/A' }}
+                        </td>
+                        <td class="py-3.5 px-4 text-slate-700">
+                            {{ emp.status_reason or 'Continuous absence without communication or shift handoff' }}
+                        </td>
+                        <td class="py-3.5 px-4 text-right space-x-1.5">
+                            <a href="{{ url_for('employees.view_employee', emp_id=emp.id) }}" class="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition">
+                                Profile & Actions
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-10 text-slate-400 italic">No No Call No Show cases recorded.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TAB CONTENT 4: DELETED EMPLOYEES AUDIT LOG -->
+        {% elif active_tab == 'deleted' %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-900 border-b border-slate-800 text-slate-300 font-semibold uppercase tracking-wider">
+                        <th class="py-3 px-4">Emp No</th>
+                        <th class="py-3 px-4">Archived Employee</th>
+                        <th class="py-3 px-4">Department & Role</th>
+                        <th class="py-3 px-4">Last Wage Details</th>
+                        <th class="py-3 px-4">Deletion Reason</th>
+                        <th class="py-3 px-4">Deleted When / By</th>
+                        <th class="py-3 px-4 text-right">Archived Details</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for log in deleted_list %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-3.5 px-4 font-mono font-bold text-slate-800">{{ log.emp_no }}</td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-bold text-slate-800 block text-sm">{{ log.first_name }} {{ log.last_name }}</span>
+                            <span class="text-[11px] text-slate-400 font-mono">{{ log.phone or log.email }}</span>
+                        </td>
+                        <td class="py-3.5 px-4">
+                            <span class="font-semibold text-slate-700 block">{{ log.designation }}</span>
+                            <span class="text-[11px] text-slate-500">{{ log.department_name }}</span>
+                        </td>
+                        <td class="py-3.5 px-4 font-mono text-slate-700">
+                            <div>Shift Wage: {{ company_info.currency_symbol }}{{ "%.2f"|format(log.shift_salary) }}/shift</div>
+                            <div class="text-[10px] text-slate-400">OT: {{ company_info.currency_symbol }}{{ "%.2f"|format(log.ot_hourly_rate) }}/hr</div>
+                        </td>
+                        <td class="py-3.5 px-4 text-slate-700 font-medium">
+                            <span class="inline-block px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[11px]">
+                                {{ log.deletion_reason }}
+                            </span>
+                        </td>
+                        <td class="py-3.5 px-4 text-slate-500">
+                            <div class="font-mono text-xs">{{ log.deleted_at }}</div>
+                            <div class="text-[10px] text-slate-400">By: {{ log.deleted_by }}</div>
+                        </td>
+                        <td class="py-3.5 px-4 text-right">
+                            <button onclick="openSnapshotModal('{{ log.id }}')" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition shadow-xs">
+                                <i class="fas fa-box-archive mr-1.5 text-blue-400"></i> Full Details
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-10 text-slate-400 italic">No deleted employee records in audit log.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+    </div>
+
+</div>
+
+<!-- ARCHIVED SNAPSHOT INSPECTOR MODAL -->
+<div id="snapshotModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center hidden z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div class="flex items-center space-x-3">
+                <div class="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center text-sm">
+                    <i class="fas fa-box-archive"></i>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-slate-900" id="snapModalTitle">Archived Employee Record</h3>
+                    <p class="text-[11px] text-slate-400">Immutable historical snapshot stored before permanent deletion</p>
+                </div>
+            </div>
+            <button type="button" onclick="closeModal('snapshotModal')" class="text-slate-400 hover:text-slate-600">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div id="snapLoading" class="py-12 text-center text-slate-400">
+            <i class="fas fa-spinner fa-spin text-2xl mb-2 text-blue-600"></i>
+            <p class="text-xs">Loading archived snapshot...</p>
+        </div>
+
+        <div id="snapContent" class="hidden mt-4 space-y-4 text-xs">
+            <!-- Profile Overview -->
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                    <span class="text-slate-400 block text-[10px] uppercase font-bold">Employee Code</span>
+                    <span class="font-mono font-bold text-sm text-slate-800" id="snapEmpNo">-</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[10px] uppercase font-bold">Full Name</span>
+                    <span class="font-bold text-sm text-slate-800" id="snapFullName">-</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[10px] uppercase font-bold">Department</span>
+                    <span class="font-semibold text-slate-800" id="snapDept">-</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[10px] uppercase font-bold">Designation</span>
+                    <span class="font-semibold text-slate-800" id="snapDesignation">-</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[10px] uppercase font-bold">Date of Joining</span>
+                    <span class="font-mono text-slate-700" id="snapJoinDate">-</span>
+                </div>
+                <div>
+                    <span class="text-slate-400 block text-[10px] uppercase font-bold">Phone Number</span>
+                    <span class="font-mono text-slate-700" id="snapPhone">-</span>
+                </div>
+            </div>
+
+            <!-- Wage & Statutory Snapshot -->
+            <div class="p-4 bg-blue-50/50 rounded-xl border border-blue-200 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                    <span class="text-blue-600 block text-[10px] uppercase font-bold">Salary Model</span>
+                    <span class="font-bold text-slate-800" id="snapSalaryType">-</span>
+                </div>
+                <div>
+                    <span class="text-blue-600 block text-[10px] uppercase font-bold">Shift Salary</span>
+                    <span class="font-mono font-bold text-slate-800" id="snapShiftSalary">-</span>
+                </div>
+                <div>
+                    <span class="text-blue-600 block text-[10px] uppercase font-bold">OT Hourly Rate</span>
+                    <span class="font-mono font-bold text-indigo-700" id="snapOtRate">-</span>
+                </div>
+                <div>
+                    <span class="text-blue-600 block text-[10px] uppercase font-bold">PF / ESI Flags</span>
+                    <span class="font-semibold text-slate-800" id="snapStatutory">-</span>
+                </div>
+            </div>
+
+            <!-- Historical Counts at Deletion -->
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-3 gap-3 text-center">
+                <div class="p-2 bg-white rounded-lg border border-slate-200">
+                    <span class="text-slate-400 block text-[10px] font-bold">Attendance Records</span>
+                    <span class="font-mono font-bold text-base text-slate-800" id="snapAttCount">0</span>
+                </div>
+                <div class="p-2 bg-white rounded-lg border border-slate-200">
+                    <span class="text-slate-400 block text-[10px] font-bold">Payslips Generated</span>
+                    <span class="font-mono font-bold text-base text-slate-800" id="snapPsCount">0</span>
+                </div>
+                <div class="p-2 bg-white rounded-lg border border-slate-200">
+                    <span class="text-slate-400 block text-[10px] font-bold">Salary Advances</span>
+                    <span class="font-mono font-bold text-base text-slate-800" id="snapAdvCount">0</span>
+                </div>
+            </div>
+
+            <!-- Deletion Audit Information -->
+            <div class="p-4 bg-rose-50/70 rounded-xl border border-rose-200 space-y-1.5">
+                <div class="flex items-center justify-between">
+                    <span class="font-bold text-rose-900 uppercase text-[11px] tracking-wider">Deletion Audit Trail</span>
+                    <span class="font-mono text-rose-700 font-bold" id="snapDeletedAt">-</span>
+                </div>
+                <div class="text-rose-800">
+                    <strong>Deleted By:</strong> <span id="snapDeletedBy">-</span>
+                </div>
+                <div class="text-rose-800">
+                    <strong>Mandatory Deletion Reason:</strong> <span class="italic" id="snapReason">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex justify-end">
+            <button type="button" onclick="closeModal('snapshotModal')" class="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition">
+                Close Snapshot
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function openSnapshotModal(logId) {
+    openModal('snapshotModal');
+    document.getElementById('snapLoading').classList.remove('hidden');
+    document.getElementById('snapContent').classList.add('hidden');
+
+    fetch('/employees/deletion-log/' + logId)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('snapLoading').classList.add('hidden');
+            document.getElementById('snapContent').classList.remove('hidden');
+
+            document.getElementById('snapModalTitle').innerText = 'Archived Record: ' + data.emp_no + ' (' + data.first_name + ' ' + data.last_name + ')';
+            document.getElementById('snapEmpNo').innerText = data.emp_no || '-';
+            document.getElementById('snapFullName').innerText = (data.first_name || '') + ' ' + (data.last_name || '');
+            document.getElementById('snapDept').innerText = data.department_name || '-';
+            document.getElementById('snapDesignation').innerText = data.designation || '-';
+            document.getElementById('snapJoinDate').innerText = data.join_date || '-';
+            document.getElementById('snapPhone').innerText = data.phone || data.email || '-';
+
+            document.getElementById('snapSalaryType').innerText = data.salary_type || 'WEEKLY';
+            document.getElementById('snapShiftSalary').innerText = '₹' + parseFloat(data.shift_salary || 0).toFixed(2);
+            document.getElementById('snapOtRate').innerText = '₹' + parseFloat(data.ot_hourly_rate || 0).toFixed(2) + '/hr';
+            
+            let stat = [];
+            if (data.pf_enabled) stat.push('PF (12%)');
+            if (data.esi_enabled) stat.push('ESI (0.75%)');
+            document.getElementById('snapStatutory').innerText = stat.length > 0 ? stat.join(', ') : 'None';
+
+            const snap = data.snapshot || {};
+            document.getElementById('snapAttCount').innerText = snap.historical_attendance_count || '0';
+            document.getElementById('snapPsCount').innerText = snap.historical_payslip_count || '0';
+            document.getElementById('snapAdvCount').innerText = snap.historical_advances_count || '0';
+
+            document.getElementById('snapDeletedAt').innerText = data.deleted_at || '-';
+            document.getElementById('snapDeletedBy').innerText = data.deleted_by || 'Administrator';
+            document.getElementById('snapReason').innerText = data.deletion_reason || 'Administrative Deletion';
+        })
+        .catch(err => {
+            document.getElementById('snapLoading').innerHTML = '<span class="text-rose-600 font-bold">Failed to load archived record.</span>';
+        });
+}
+</script>
+{% endblock %}

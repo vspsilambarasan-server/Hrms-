@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Page Not Found | ApexHRMS{% endblock %}
+{% block header_title %}404 - Not Found{% endblock %}
+
+{% block content %}
+<div class="text-center py-16">
+    <div class="w-16 h-16 bg-slate-200 text-slate-500 rounded-2xl flex items-center justify-center mx-auto text-2xl mb-4 font-bold">
+        404
+    </div>
+    <h2 class="text-xl font-bold text-slate-800">Page Not Found</h2>
+    <p class="text-xs text-slate-500 mt-1 mb-6">The requested HRMS view or record does not exist.</p>
+    <a href="{{ url_for('dashboard.index') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition">
+        Return to Dashboard
+    </a>
+</div>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard | ApexHRMS Shift & OT Payroll{% endblock %}
+{% block header_title %}Operations & Payroll Dashboard{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- KPI STATS ROW -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <!-- 1. Total Employees -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Workforce</p>
+                <h3 class="text-2xl font-extrabold text-slate-800 mt-1">{{ total_employees }}</h3>
+                <p class="text-xs text-slate-500 mt-1"><i class="fas fa-layer-group text-blue-500 mr-1"></i> Across {{ total_shifts }} Active Shifts</p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl font-bold">
+                <i class="fas fa-id-card-clip"></i>
+            </div>
+        </div>
+
+        <!-- 2. Attendance Status -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <div class="flex items-center space-x-1">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Attendance</p>
+                    <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-mono">{{ eval_date }}</span>
+                </div>
+                <div class="flex items-baseline space-x-2 mt-1">
+                    <h3 class="text-2xl font-extrabold text-emerald-600">{{ today_att.present_count }}</h3>
+                    <span class="text-xs text-slate-400 font-medium">/ {{ total_employees }} present</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">
+                    <span class="text-amber-600 font-medium">{{ today_att.late_count }} late</span> • 
+                    <span class="text-rose-600 font-medium">{{ today_att.absent_count }} absent</span>
+                </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl font-bold">
+                <i class="fas fa-user-check"></i>
+            </div>
+        </div>
+
+        <!-- 3. Overtime Pending Review -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Pending OT Claims</p>
+                <div class="flex items-baseline space-x-2 mt-1">
+                    <h3 class="text-2xl font-extrabold {% if pending_ot.pending_count > 0 %}text-amber-600{% else %}text-slate-800{% endif %}">
+                        {{ pending_ot.pending_count }}
+                    </h3>
+                    <span class="text-xs font-semibold text-slate-500">({{ pending_ot.pending_hours }} hrs)</span>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">
+                    Est. Cost: <span class="font-bold text-slate-700">{{ company_info.currency_symbol }}{{ "%.2f"|format(pending_ot.pending_cost) }}</span>
+                </p>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl font-bold">
+                <i class="fas fa-business-time"></i>
+            </div>
+        </div>
+
+        <!-- 4. Latest Payroll Summary -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+            <div>
+                <div class="flex items-center space-x-1">
+                    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Latest Payroll</p>
+                    {% if latest_payroll %}
+                    <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">{{ latest_payroll.period_name }}</span>
+                    {% endif %}
+                </div>
+                {% if latest_payroll %}
+                <h3 class="text-2xl font-extrabold text-slate-800 mt-1">{{ company_info.currency_symbol }}{{ "%.2f"|format(latest_payroll.total_net) }}</h3>
+                <p class="text-xs text-slate-500 mt-1">
+                    OT: <span class="text-indigo-600 font-semibold">{{ company_info.currency_symbol }}{{ "%.1f"|format(latest_payroll.total_ot_pay) }}</span> | 
+                    Shift: <span class="text-emerald-600 font-semibold">{{ company_info.currency_symbol }}{{ "%.1f"|format(latest_payroll.total_shift_allowance) }}</span>
+                </p>
+                {% else %}
+                <h3 class="text-xl font-bold text-slate-400 mt-1">No Runs Yet</h3>
+                <p class="text-xs text-slate-500 mt-1">Process a pay run in Payroll</p>
+                {% endif %}
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold">
+                <i class="fas fa-file-invoice-dollar"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- BIOMETRIC AUTO-SYNC HARDWARE TERMINAL STATUS -->
+    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-xl shadow-md border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="flex items-center space-x-4">
+            <div class="w-12 h-12 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-400 text-xl shrink-0">
+                <i class="fas fa-fingerprint"></i>
+            </div>
+            <div>
+                <div class="flex flex-wrap items-center gap-2.5">
+                    <h4 class="text-sm font-bold text-white">Biometric Auto-Sync Hardware Terminal</h4>
+                    <span class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold {% if auto_sync_status.enabled %}bg-emerald-500/20 text-emerald-300 border border-emerald-500/40{% else %}bg-amber-500/20 text-amber-300 border border-amber-500/40{% endif %}">
+                        <span class="w-2 h-2 rounded-full {% if auto_sync_status.enabled %}bg-emerald-400 animate-pulse{% else %}bg-amber-400{% endif %}"></span>
+                        <span>{% if auto_sync_status.enabled %}1-Minute Auto-Sync Active{% else %}Auto-Sync Paused{% endif %}</span>
+                    </span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                        {{ auto_sync_status.device_ip }}:{{ auto_sync_status.device_port }}
+                    </span>
+                </div>
+                <p class="text-xs text-slate-300 mt-1">
+                    Punches are captured directly from the physical ZKTeco terminal every 60 seconds. Daily post-shift overtime &le; 3.5h is auto-approved upon clock-out.
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2 shrink-0">
+            <a href="{{ url_for('attendance.index') }}" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg transition shadow-sm flex items-center">
+                <i class="fas fa-table-cells mr-1.5"></i> Daily Attendance Register
+            </a>
+            <a href="{{ url_for('overtime.list_overtime') }}" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg border border-slate-700 transition flex items-center">
+                <i class="fas fa-hourglass-half mr-1.5 text-amber-400"></i> Overtime (OT) Ledger
+            </a>
+        </div>
+    </div>
+
+    <!-- BOTTOM ROW: RECENT OVERTIME CLAIMS & DEPARTMENT OT CHART -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Recent Overtime Claims -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-2">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-hourglass-half text-amber-500"></i>
+                    <h4 class="text-sm font-bold text-slate-800">Recent Overtime Claims</h4>
+                </div>
+                <a href="{{ url_for('overtime.list_overtime') }}" class="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                    Review All ({{ global_pending_ot }} Pending) <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                    <thead>
+                        <tr class="border-b border-slate-200 text-slate-400 font-semibold uppercase tracking-wider">
+                            <th class="pb-2.5">Date</th>
+                            <th class="pb-2.5">Employee</th>
+                            <th class="pb-2.5">Dept</th>
+                            <th class="pb-2.5 text-center">OT Hours</th>
+                            <th class="pb-2.5 text-right">Est. Pay</th>
+                            <th class="pb-2.5 text-center">Status</th>
+                            <th class="pb-2.5 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for ot in recent_ot %}
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="py-2.5 font-mono text-slate-600">{{ ot.date }}</td>
+                            <td class="py-2.5 font-semibold text-slate-800">
+                                {{ ot.first_name }} {{ ot.last_name }}
+                                <span class="text-[10px] text-slate-400 font-normal block">{{ ot.emp_no }}</span>
+                            </td>
+                            <td class="py-2.5 text-slate-500">{{ ot.dept_name }}</td>
+                            <td class="py-2.5 text-center font-mono font-bold text-indigo-600">
+                                {{ ot.total_ot_hours }}h
+                                <span class="text-[10px] text-slate-400 font-normal block">{{ ot.multiplier }}x rate</span>
+                            </td>
+                            <td class="py-2.5 text-right font-mono font-semibold text-slate-700">
+                                {{ company_info.currency_symbol }}{{ "%.2f"|format(ot.calculated_ot_pay) }}
+                            </td>
+                            <td class="py-2.5 text-center">
+                                {% if ot.status == 'APPROVED' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">APPROVED</span>
+                                {% elif ot.status == 'REJECTED' %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">REJECTED</span>
+                                {% else %}
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">PENDING</span>
+                                {% endif %}
+                            </td>
+                            <td class="py-2.5 text-right">
+                                {% if ot.status == 'PENDING' %}
+                                <div class="inline-flex space-x-1">
+                                    <form action="{{ url_for('overtime.review_action', ot_id=ot.id) }}" method="POST" class="inline">
+                                        <input type="hidden" name="action" value="APPROVE">
+                                        <button type="submit" class="p-1 px-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold" title="Approve">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form action="{{ url_for('overtime.review_action', ot_id=ot.id) }}" method="POST" class="inline">
+                                        <input type="hidden" name="action" value="REJECT">
+                                        <button type="submit" class="p-1 px-2 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold" title="Reject">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                                {% else %}
+                                <span class="text-[11px] text-slate-400 italic">Reviewed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Department Overtime Breakdown -->
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-1 flex flex-col justify-between">
+            <div>
+                <div class="flex items-center space-x-2 pb-3 border-b border-slate-100 mb-3">
+                    <i class="fas fa-coins text-emerald-500"></i>
+                    <h4 class="text-sm font-bold text-slate-800">Approved OT by Department</h4>
+                </div>
+                <div class="space-y-3">
+                    {% for d in dept_ot_stats %}
+                    <div>
+                        <div class="flex items-center justify-between text-xs mb-1">
+                            <span class="font-semibold text-slate-700">{{ d.dept_name }}</span>
+                            <span class="font-bold text-indigo-700">{{ company_info.currency_symbol }}{{ d.total_ot_cost }}</span>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-slate-400">
+                            <span>Hours: {{ d.total_ot_hours }}h</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 text-center">
+                <a href="{{ url_for('payroll.index') }}" class="w-full inline-block py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition shadow-sm">
+                    <i class="fas fa-calculator mr-1.5 text-blue-400"></i> Process Payroll Run
+                </a>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

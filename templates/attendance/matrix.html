@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Monthly Attendance Matrix | Vasantham Printers{% endblock %}
+{% block header_title %}Monthly Attendance & Punch Matrix{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- SUB-NAVIGATION TABS -->
+    <div class="flex items-center space-x-2 border-b border-slate-200 pb-2">
+        <a href="{{ url_for('attendance.index') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-calendar-day mr-1.5 text-slate-500"></i> Single Day View
+        </a>
+        <a href="{{ url_for('attendance.all_punches') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-fingerprint mr-1.5 text-slate-500"></i> All Punches per Person
+        </a>
+        <a href="{{ url_for('attendance.in_out_report') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-clock-rotate-left mr-1.5 text-slate-500"></i> Daily In & Out Register
+        </a>
+        <a href="{{ url_for('attendance.matrix') }}" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg shadow-sm">
+            <i class="fas fa-table-cells mr-1.5"></i> Monthly Matrix
+        </a>
+        <a href="{{ url_for('attendance.audit_log') }}" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200 transition">
+            <i class="fas fa-file-shield mr-1.5 text-slate-500"></i> Edit Audit Log
+        </a>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <form method="GET" action="{{ url_for('attendance.matrix') }}" class="flex flex-wrap items-center gap-3">
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-500 uppercase">Month:</label>
+                <select name="month" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-semibold">
+                    {% for m in range(1, 13) %}
+                    <option value="{{ m }}" {% if selected_month == m %}selected{% endif %}>{{ ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m-1] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <label class="text-xs font-bold text-slate-500 uppercase">Year:</label>
+                <select name="year" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50 font-semibold">
+                    <option value="2025" {% if selected_year == 2025 %}selected{% endif %}>2025</option>
+                    <option value="2026" {% if selected_year == 2026 %}selected{% endif %}>2026</option>
+                </select>
+            </div>
+
+            <select name="dept" onchange="this.form.submit()" class="text-xs py-1.5 px-3 rounded-lg border-slate-300 focus:border-blue-500 bg-slate-50">
+                <option value="">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d.id }}" {% if selected_dept|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+
+        <!-- Legend -->
+        <div class="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            <span class="inline-flex items-center px-2 py-0.5 rounded bg-emerald-100 text-emerald-800"><strong class="mr-1">P</strong> Present</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 text-amber-800"><strong class="mr-1">L</strong> Late</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded bg-purple-100 text-purple-800"><strong class="mr-1">HD</strong> Half Day</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded bg-rose-100 text-rose-800"><strong class="mr-1">A</strong> Absent</span>
+            <span class="inline-flex items-center px-2 py-0.5 rounded bg-slate-200 text-slate-700"><strong class="mr-1">WO</strong> Off</span>
+        </div>
+    </div>
+
+    <!-- MATRIX TABLE -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto max-h-[75vh]">
+            <table class="w-full text-left text-xs border-collapse">
+                <thead class="sticky top-0 bg-slate-900 text-white z-10 select-none">
+                    <tr>
+                        <th class="py-3 px-3 sticky left-0 bg-slate-900 z-20 w-48 border-r border-slate-800">Staff Member</th>
+                        {% for d in month_days %}
+                        <th class="py-2 px-1.5 text-center min-w-[28px] border-r border-slate-800 font-mono text-[11px]">
+                            {{ d }}
+                        </th>
+                        {% endfor %}
+                        <th class="py-3 px-3 text-center bg-slate-950 min-w-[65px]">Days</th>
+                        <th class="py-3 px-3 text-center bg-slate-950 min-w-[65px]">Hours</th>
+                        <th class="py-3 px-3 text-center bg-slate-950 min-w-[65px]">OT</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for row in employee_data %}
+                    <tr class="hover:bg-blue-50/50 transition">
+                        <td class="py-2.5 px-3 sticky left-0 bg-white hover:bg-blue-50/50 z-10 border-r border-slate-200 shadow-sm">
+                            <span class="font-bold text-slate-800 block truncate max-w-[180px]">{{ row.employee.first_name }} {{ row.employee.last_name }}</span>
+                            <span class="text-[10px] font-mono text-slate-400">{{ row.employee.emp_no }} • {{ row.employee.dept_name }}</span>
+                        </td>
+
+                        {% for cell in row.cells %}
+                        <td class="p-1 text-center border-r border-slate-100 {% if cell.is_sunday %}bg-slate-50{% endif %}">
+                            {% if cell.has_record %}
+                                {% if cell.status == 'PRESENT' %}
+                                <span class="inline-block w-6 h-6 leading-6 rounded font-mono font-bold text-[10px] bg-emerald-100 text-emerald-800 cursor-pointer" 
+                                      title="{{ cell.date }}: IN {{ cell.in_time }} | OUT {{ cell.out_time }} ({{ cell.hours }}h)">
+                                    P
+                                </span>
+                                {% elif cell.status == 'LATE' %}
+                                <span class="inline-block w-6 h-6 leading-6 rounded font-mono font-bold text-[10px] bg-amber-100 text-amber-800 cursor-pointer" 
+                                      title="{{ cell.date }}: LATE! IN {{ cell.in_time }} | OUT {{ cell.out_time }} ({{ cell.hours }}h)">
+                                    L
+                                </span>
+                                {% elif cell.status == 'HALF_DAY' %}
+                                <span class="inline-block w-6 h-6 leading-6 rounded font-mono font-bold text-[10px] bg-purple-100 text-purple-800 cursor-pointer" 
+                                      title="{{ cell.date }}: HALF DAY ({{ cell.hours }}h)">
+                                    HD
+                                </span>
+                                {% else %}
+                                <span class="inline-block w-6 h-6 leading-6 rounded font-mono font-bold text-[10px] bg-rose-100 text-rose-800 cursor-pointer" 
+                                      title="{{ cell.date }}: Absent ({{ cell.in_time }} - {{ cell.out_time }})">
+                                    A
+                                </span>
+                                {% endif %}
+                            {% else %}
+                                {% if cell.is_sunday %}
+                                <span class="inline-block w-6 h-6 leading-6 rounded font-mono text-[9px] text-slate-400 bg-slate-100">WO</span>
+                                {% else %}
+                                <span class="inline-block w-6 h-6 leading-6 rounded font-mono text-[9px] text-slate-300">-</span>
+                                {% endif %}
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+
+                        <td class="py-2 px-2 text-center font-mono font-extrabold text-emerald-700 bg-emerald-50/40">
+                            {{ row.present_days }}
+                        </td>
+                        <td class="py-2 px-2 text-center font-mono font-bold text-slate-700 bg-slate-50/60">
+                            {{ row.total_hours }}h
+                        </td>
+                        <td class="py-2 px-2 text-center font-mono font-bold text-indigo-600 bg-indigo-50/40">
+                            {{ row.total_ot }}h
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
