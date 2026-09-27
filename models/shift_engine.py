@@ -240,20 +240,26 @@ def evaluate_attendance(shift_date_str, shift, punch_in_str, punch_out_str, is_o
 
     # If employee has punched in but has not yet punched out
     if not punch_out_str:
-        if is_shift_ended:
+        try:
+            p_in = datetime.strptime(punch_in_str, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            p_in = datetime.strptime(punch_in_str, "%Y-%m-%d %H:%M")
+
+        is_night_punch = (not shift.get("is_overnight")) and (p_in.hour >= 20)
+        if is_shift_ended and not is_night_punch:
             # Per factory policy: shift ends at 18:00 with NO punch required.
             punch_out_str = sched_end.strftime("%Y-%m-%d %H:%M:%S")
         else:
-            # Shift still actively in progress
+            # Shift still actively in progress (or night punch in progress)
             grace_late = timedelta(minutes=shift.get("grace_late_mins", 15))
-            try:
-                p_in = datetime.strptime(punch_in_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                p_in = datetime.strptime(punch_in_str, "%Y-%m-%d %H:%M")
-            
+            eff_start = sched_start
+            if is_night_punch:
+                base_d = datetime.strptime(shift_date_str, "%Y-%m-%d")
+                eff_start = base_d.replace(hour=22, minute=30, second=0)
+
             late_mins = 0
-            if p_in > (sched_start + grace_late):
-                diff = p_in - sched_start
+            if p_in > (eff_start + grace_late):
+                diff = p_in - eff_start
                 late_mins = int(diff.total_seconds() // 60)
             
             status = "LATE" if late_mins > 0 else "PRESENT"
@@ -289,8 +295,138 @@ def evaluate_attendance(shift_date_str, shift, punch_in_str, punch_out_str, is_o
 
     min_full = float(shift.get("min_hours_full_day", 8.0))
     min_half = float(shift.get("min_hours_half_day", 4.5))
+    base_date = datetime.strptime(shift_date_str, "%Y-%m-%d")
 
-    # Calculate Lateness
+    # Detect standalone Night Duty (when shift is day shift GEN but employee clocked in for night duty e.g. 22:30 to 03:00)
+    is_standalone_night = (not shift.get("is_overnight")) and (p_in.hour >= 20) and (p_out > p_in)
+
+    # Check if all_punches has both day session and night duty session
+    has_combined_day_and_night = False
+    day_punches = []
+    night_punches = []
+
+    if all_punches and not shift.get("is_overnight"):
+        norm_punches = []
+        for p in all_punches:
+            if isinstance(p, dict) or hasattr(p, "keys"):
+                p_dict = dict(p)
+                t_str = (p_dict.get("punch_time") or p_dict.get("full_time") or "").strip()
+            elif isinstance(p, (tuple, list)):
+                t_str = str(p[0]).strip()
+            else:
+                t_str = str(p).strip()
+            for f in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+                try:
+                    dt = datetime.strptime(t_str, f)
+                    norm_punches.append(dt)
+                    break
+                except ValueError:
+                    pass
+        norm_punches.sort()
+
+        if len(norm_punches) >= 2 and norm_punches[0].hour < 18:
+            for i in range(len(norm_punches) - 1):
+                p_curr = norm_punches[i]
+                p_next = norm_punches[i+1]
+                if p_curr.date() == base_date.date() and p_curr.hour >= 20:
+                    if p_next.date() > base_date.date() and p_next.hour <= 8:
+                        has_combined_day_and_night = True
+                        day_punches = norm_punches[:i]
+                        night_punches = norm_punches[i:]
+                        break
+
+    if is_standalone_night:
+        # Segment 7 schedule: 10:30 PM (22:30) to 05:30 AM
+        night_start = base_date.replace(hour=22, minute=30, second=0)
+        grace_late = timedelta(minutes=shift.get("grace_late_mins", 15))
+
+        late_mins = 0
+        if p_in > (night_start + grace_late):
+            late_mins = int((p_in - night_start).total_seconds() // 60)
+
+        elapsed_seconds = (p_out - p_in).total_seconds()
+        work_hours = round(elapsed_seconds / 3600.0, 2)
+
+        # All night duty hours worked are overtime
+        gross_ot_hours = work_hours
+        late_deduction_mins = late_mins
+        net_ot_hours = max(0.0, round(gross_ot_hours - (late_mins / 60.0), 2))
+
+        status = "PRESENT" if work_hours >= 4.0 else ("HALF_DAY" if work_hours >= 2.0 else "ABSENT")
+        allowance_rate = shift.get("allowance_rate", 0.0)
+        shift_allowance = float(allowance_rate)
+
+        return {
+            "work_hours": work_hours,
+            "late_mins": late_mins,
+            "late_deduction_mins": late_deduction_mins,
+            "early_leave_mins": 0,
+            "status": status,
+            "shift_allowance": shift_allowance,
+            "pre_shift_ot_hours": 0.0,
+            "post_shift_ot_hours": net_ot_hours,
+            "gross_ot_hours": gross_ot_hours,
+            "total_ot_hours": net_ot_hours,
+            "ot_type": "NORMAL"
+        }
+
+    elif has_combined_day_and_night:
+        # Session 1: Day Shift & Evening OT
+        day_p_in = day_punches[0]
+        day_p_out = day_punches[-1] if len(day_punches) > 1 else sched_end
+
+        late_mins, breakdown = compute_daily_lateness(
+            shift_date_str, sched_start, day_punches, grace_late_mins=shift.get("grace_late_mins", 15)
+        )
+
+        day_elapsed = (day_p_out - day_p_in).total_seconds()
+        break_seconds = shift.get("break_mins", 60) * 60
+        day_work_hours = max(0.0, round((day_elapsed - break_seconds) / 3600.0, 2))
+
+        # Day OT: post-18:00 minus 15 min OT break
+        day_gross_ot = 0.0
+        if day_p_out > sched_end:
+            ot_start = sched_end
+            ot_end = day_p_out
+            ot_break_start = base_date.replace(hour=19, minute=0, second=0)
+            ot_break_end = base_date.replace(hour=19, minute=15, second=0)
+            if ot_start <= ot_break_start and ot_end > ot_break_start:
+                if ot_end <= ot_break_end:
+                    ot_sec = (ot_break_start - ot_start).total_seconds()
+                else:
+                    ot_sec = (ot_end - ot_start).total_seconds() - 900.0
+            else:
+                ot_sec = (ot_end - ot_start).total_seconds()
+            day_gross_ot = round(max(0.0, ot_sec) / 3600.0, 2)
+
+        # Session 2: Night Duty
+        night_p_in = night_punches[0]
+        night_p_out = night_punches[-1]
+        night_work_hours = round((night_p_out - night_p_in).total_seconds() / 3600.0, 2)
+        night_gross_ot = night_work_hours
+
+        # Combined totals
+        total_work_hours = round(day_work_hours + night_work_hours, 2)
+        total_gross_ot = round(day_gross_ot + night_gross_ot, 2)
+        net_ot = max(0.0, round(total_gross_ot - (late_mins / 60.0), 2))
+        status = "LATE" if late_mins > 0 else "PRESENT"
+        allowance_rate = shift.get("allowance_rate", 0.0)
+
+        return {
+            "work_hours": total_work_hours,
+            "late_mins": late_mins,
+            "late_deduction_mins": late_mins,
+            "early_leave_mins": 0,
+            "status": status,
+            "shift_allowance": float(allowance_rate),
+            "pre_shift_ot_hours": 0.0,
+            "post_shift_ot_hours": net_ot,
+            "gross_ot_hours": total_gross_ot,
+            "total_ot_hours": net_ot,
+            "ot_type": "NORMAL"
+        }
+
+    # Standard day shift or scheduled overnight shift
     if all_punches:
         late_mins, breakdown = compute_daily_lateness(
             shift_date_str, sched_start, all_punches, grace_late_mins=shift.get("grace_late_mins", 15)
