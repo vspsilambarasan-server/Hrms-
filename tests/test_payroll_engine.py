@@ -8,13 +8,14 @@ class TestPayrollEngine(unittest.TestCase):
 
     def setUp(self):
         self.conn = get_db_connection()
+        self.test_run_id = None
 
     def tearDown(self):
         cur = self.conn.cursor()
-        cur.execute("SELECT id FROM payroll_runs WHERE month = 9 AND year = 2026")
-        for r in cur.fetchall():
-            cur.execute("DELETE FROM payslips WHERE payroll_run_id = ?", (r["id"],))
-            cur.execute("DELETE FROM payroll_runs WHERE id = ?", (r["id"],))
+        if self.test_run_id:
+            cur.execute("DELETE FROM payslip_day_timings WHERE payroll_run_id = ?", (self.test_run_id,))
+            cur.execute("DELETE FROM payslips WHERE payroll_run_id = ?", (self.test_run_id,))
+            cur.execute("DELETE FROM payroll_runs WHERE id = ?", (self.test_run_id,))
         cur.execute("DELETE FROM employees WHERE id = 999")
         cur.execute("DELETE FROM departments WHERE id = 999")
         self.conn.commit()
@@ -50,6 +51,7 @@ class TestPayrollEngine(unittest.TestCase):
             self.conn.commit()
 
         res = run_monthly_payroll(self.conn, 9, 2026)
+        self.test_run_id = res.get("payroll_run_id")
         self.assertTrue(res["success"])
         self.assertGreater(res["processed_employees"], 0)
         self.assertGreater(res["total_gross"], 0)

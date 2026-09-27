@@ -120,24 +120,33 @@
                     <i class="fas fa-fingerprint mr-1.5 text-blue-600"></i>
                     Day-wise Attendance &amp; Punch Register
                 </span>
-                <span class="text-[10px] font-mono text-blue-700 font-semibold">{{ payslip.start_date }} → {{ payslip.end_date }}</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-mono text-blue-700 font-semibold">{{ payslip.start_date }} → {{ payslip.end_date }}</span>
+                    <a href="{{ url_for('payroll.export_payslip_timings', payslip_id=payslip.id) }}" class="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300 no-print" title="Export stored daily timings & wages to CSV">
+                        <i class="fas fa-file-csv"></i> Export Timings
+                    </a>
+                </div>
             </div>
             <table class="w-full text-xs">
                 <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>
-                        <th class="py-2 px-3 text-left">Date</th>
+                        <th class="py-2 px-3 text-left">Date / Day</th>
                         <th class="py-2 px-2 text-center">Status</th>
                         <th class="py-2 px-2 text-center text-emerald-700">First IN</th>
                         <th class="py-2 px-3 text-left">All Punches (Morning → Last)</th>
                         <th class="py-2 px-2 text-center text-indigo-700">Last OUT</th>
                         <th class="py-2 px-2 text-center">Work Hrs</th>
                         <th class="py-2 px-2 text-center text-indigo-600">OT Hrs</th>
+                        <th class="py-2 px-3 text-right text-slate-700">Daily Pay</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for day in daily_attendance %}
                     <tr class="{% if day.status == 'WEEKLY_OFF' %}bg-slate-50{% elif day.status in ('PRESENT','LATE') %}bg-white{% else %}bg-amber-50/30{% endif %}">
-                        <td class="py-1.5 px-3 font-mono font-semibold text-slate-700 whitespace-nowrap">{{ day.date }}</td>
+                        <td class="py-1.5 px-3 font-mono font-semibold text-slate-700 whitespace-nowrap">
+                            {{ day.date }}
+                            {% if day.day_short %}<span class="text-[10px] font-sans font-bold text-slate-400 ml-1">({{ day.day_short }})</span>{% endif %}
+                        </td>
                         <td class="py-1.5 px-2 text-center whitespace-nowrap">
                             {% if day.status == 'PRESENT' %}
                             <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">PRESENT</span>
@@ -177,10 +186,22 @@
                         <td class="py-1.5 px-2 text-center font-mono whitespace-nowrap {% if day.ot_hours > 0 %}text-indigo-700 font-semibold{% else %}text-slate-300{% endif %}">
                             {% if day.ot_hours > 0 %}{{ "%.2f"|format(day.ot_hours) }}h{% else %}—{% endif %}
                         </td>
+                        <td class="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 whitespace-nowrap">
+                            {% if day.day_total_pay is defined and day.day_total_pay > 0 %}
+                            {{ company_info.currency_symbol }}{{ "%.2f"|format(day.day_total_pay) }}
+                            {% if day.ot_pay is defined and day.ot_pay > 0 %}<span class="block text-[8px] font-normal text-indigo-600 font-mono">(OT: +{{ "%.2f"|format(day.ot_pay) }})</span>{% endif %}
+                            {% else %}
+                            <span class="text-slate-300">—</span>
+                            {% endif %}
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
+            <div class="bg-slate-50 px-3 py-1.5 border-t border-slate-200 text-[10px] text-slate-500 flex flex-wrap justify-between items-center gap-2">
+                <span><i class="fas fa-database text-emerald-600 mr-1"></i> <strong>Audit Storage:</strong> Daily timings, punch sequence, and salary breakdowns are permanently saved in <code class="text-slate-700 font-semibold">payslip_day_timings</code>.</span>
+                <span class="font-mono text-[9px] text-slate-400">Night duty checkouts (< 07:30 AM) correctly credited to shift duty date.</span>
+            </div>
         </div>
         {% endif %}
 

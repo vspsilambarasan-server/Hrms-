@@ -7,7 +7,8 @@ from models.payroll_engine import (
     run_monthly_payroll,
     run_weekly_payroll,
     finalize_payroll_run,
-    adjust_draft_payslip
+    adjust_draft_payslip,
+    build_and_store_payslip_day_timings
 )
 
 payroll_bp = Blueprint("payroll", __name__, url_prefix="/payroll")
@@ -222,12 +223,16 @@ def view_payslip(payslip_id):
         "currency_symbol": "₹"
     })
 
+    # --- Daily Punch Timeline for payslip (Cross-midnight accurate & permanently stored) ---
+    daily_attendance = build_and_store_payslip_day_timings(conn, payslip["id"])
+
     conn.close()
     return render_template(
         "payroll/payslip.html",
         payslip=payslip,
         settings=settings,
-        active_advance=active_advance
+        active_advance=active_advance,
+        daily_attendance=daily_attendance
     )
 
 @payroll_bp.route("/run/<int:run_id>/print-all")
@@ -281,6 +286,10 @@ def print_all_payslips(run_id):
         "company_name": "Vasantham Printers",
         "currency_symbol": "₹"
     })
+
+    # --- Daily Punch Timeline for each payslip (Cross-midnight accurate & stored) ---
+    for p in payslips:
+        p["daily_attendance"] = build_and_store_payslip_day_timings(conn, p["id"])
 
     conn.close()
     return render_template(
@@ -493,6 +502,53 @@ def export_csv(run_id):
 
     csv_data = output.getvalue()
     filename = f"payroll_{run_row['period_name'].replace(' ', '_').replace('(', '').replace(')', '')}.csv"
+    response = make_response(csv_data)
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    response.headers["Content-type"] = "text/csv"
+    return response
+
+
+@payroll_bp.route("/payslip/<int:payslip_id>/timings/export")
+def export_payslip_timings(payslip_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT * FROM payslip_day_timings
+        WHERE payslip_id = ?
+        ORDER BY date ASC
+    """, (payslip_id,))
+    rows = cursor.fetchall()
+
+    if not rows:
+        build_and_store_payslip_day_timings(conn, payslip_id)
+        cursor.execute("""
+            SELECT * FROM payslip_day_timings
+            WHERE payslip_id = ?
+            ORDER BY date ASC
+        """, (payslip_id,))
+        rows = cursor.fetchall()
+
+    conn.close()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Employee No", "Employee Name", "Date", "Day", "Status",
+        "First IN", "All Punches", "Last OUT", "Work Hours", "OT Hours",
+        "Daily Shift Wage", "OT Rate", "OT Pay", "Day Total Earnings"
+    ])
+
+    for r in rows:
+        writer.writerow([
+            r["emp_no"], r["employee_name"], r["date"], r["day_name"], r["status"],
+            r["punch_in"] or "--:--", r["punches_text"] or "", r["punch_out"] or "--:--",
+            r["work_hours"], r["ot_hours"], r["shift_wage"], r["ot_rate"], r["ot_pay"], r["day_total_pay"]
+        ])
+
+    csv_data = output.getvalue()
+    emp_no = rows[0]["emp_no"] if rows else "payslip"
+    filename = f"timings_salary_storage_{emp_no}_{payslip_id}.csv"
     response = make_response(csv_data)
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     response.headers["Content-type"] = "text/csv"

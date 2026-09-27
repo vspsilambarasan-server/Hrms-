@@ -268,6 +268,33 @@ def init_db():
         UNIQUE(payroll_run_id, employee_id)
     );
 
+    -- 10b. Payslip Daily Timings & Wages (Permanent Audit & Calculation Storage)
+    CREATE TABLE IF NOT EXISTS payslip_day_timings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        payslip_id INTEGER NOT NULL REFERENCES payslips(id) ON DELETE CASCADE,
+        payroll_run_id INTEGER REFERENCES payroll_runs(id) ON DELETE CASCADE,
+        employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        emp_no TEXT NOT NULL,
+        employee_name TEXT NOT NULL,
+        date TEXT NOT NULL,
+        day_name TEXT NOT NULL,
+        status TEXT NOT NULL,
+        punch_in TEXT,
+        punch_out TEXT,
+        punches_text TEXT,
+        work_hours REAL NOT NULL DEFAULT 0.0,
+        ot_hours REAL NOT NULL DEFAULT 0.0,
+        shift_wage REAL NOT NULL DEFAULT 0.0,
+        ot_rate REAL NOT NULL DEFAULT 0.0,
+        ot_pay REAL NOT NULL DEFAULT 0.0,
+        day_total_pay REAL NOT NULL DEFAULT 0.0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(payslip_id, date)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pdt_payslip_id ON payslip_day_timings(payslip_id);
+    CREATE INDEX IF NOT EXISTS idx_pdt_emp_date ON payslip_day_timings(employee_id, date);
+
     -- 11. Daily Duty & Break Intervals (Working Timing & Overtime Segments)
     CREATE TABLE IF NOT EXISTS duty_intervals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,5 +1,5 @@
 import calendar
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from models.ot_engine import calculate_hourly_rate
 
 def get_employee_active_advance(cursor, employee_id):
@@ -207,6 +207,11 @@ def run_monthly_payroll(conn, month, year, bonus=0.0, user="HR Admin"):
             pf_deduction, esi_deduction, tax_deduction, lop_deduction, advance_deduction,
             total_deductions, net_pay
         ))
+        payslip_id = cursor.lastrowid
+        try:
+            build_and_store_payslip_day_timings(conn, payslip_id)
+        except Exception:
+            pass
 
         run_total_gross += gross_earnings
         run_total_net += net_pay
@@ -466,6 +471,11 @@ def run_weekly_payroll(conn, start_date, end_date, period_name=None, bonus=0.0, 
             pf_deduction, esi_deduction, tax_deduction, lop_deduction, advance_deduction,
             total_deductions, net_pay
         ))
+        payslip_id = cursor.lastrowid
+        try:
+            build_and_store_payslip_day_timings(conn, payslip_id)
+        except Exception:
+            pass
 
         run_total_gross += gross_earnings
         run_total_net += net_pay
@@ -507,6 +517,173 @@ def run_weekly_payroll(conn, start_date, end_date, period_name=None, bonus=0.0, 
         "total_bonus": round(run_total_bonus, 2),
         "total_advance_deductions": round(run_total_advances, 2)
     }
+
+
+def build_and_store_payslip_day_timings(conn, payslip_id):
+    """
+    Builds day-by-day attendance & punch timing register with cross-midnight awareness,
+    calculates daily wages & overtime pay, and permanently freezes them in payslip_day_timings table.
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT p.*, pr.start_date, pr.end_date, pr.run_type,
+               e.emp_no, (e.first_name || ' ' || COALESCE(e.last_name, '')) as emp_name,
+               e.shift_salary, e.ot_hourly_rate, e.hourly_rate, e.weekly_off_day
+        FROM payslips p
+        JOIN payroll_runs pr ON p.payroll_run_id = pr.id
+        JOIN employees e ON p.employee_id = e.id
+        WHERE p.id = ?
+    """, (payslip_id,))
+    p_row = cursor.fetchone()
+    if not p_row:
+        return []
+    payslip = dict(p_row)
+    emp_id = payslip["employee_id"]
+    start_date = payslip["start_date"]
+    end_date = payslip["end_date"]
+
+    s_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    e_dt = datetime.strptime(end_date, "%Y-%m-%d")
+    curr_dt = s_dt
+    all_dates = []
+    while curr_dt <= e_dt:
+        all_dates.append(curr_dt.strftime("%Y-%m-%d"))
+        curr_dt += timedelta(days=1)
+
+    cursor.execute("""
+        SELECT ar.*
+        FROM attendance_records ar
+        WHERE ar.employee_id = ? AND ar.date >= ? AND ar.date <= ?
+        ORDER BY ar.date ASC
+    """, (emp_id, start_date, end_date))
+    att_rows = [dict(r) for r in cursor.fetchall()]
+    att_map = {r["date"]: r for r in att_rows}
+
+    ext_end_date = (e_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+    cursor.execute("""
+        SELECT punch_time, punch_type
+        FROM attendance_punches
+        WHERE employee_id = ? AND punch_time >= ? AND punch_time <= ?
+        ORDER BY punch_time ASC
+    """, (emp_id, f"{start_date} 00:00:00", f"{ext_end_date} 12:00:00"))
+    all_punches = [dict(r) for r in cursor.fetchall()]
+
+    day_punches = {d: [] for d in all_dates}
+    day_punches[ext_end_date] = []
+    for p in all_punches:
+        p_date = p["punch_time"][:10]
+        if p_date in day_punches:
+            day_punches[p_date].append(p["punch_time"])
+
+    # Cross-midnight punch adjustment:
+    # If early morning punch (<07:30) follows previous evening punch (>=20:00), move to prev day as checkout
+    for i in range(1, len(all_dates) + 1):
+        d_curr = all_dates[i] if i < len(all_dates) else ext_end_date
+        d_prev = all_dates[i-1]
+        curr_list = day_punches.get(d_curr, [])
+        prev_list = day_punches.get(d_prev, [])
+
+        if curr_list and prev_list:
+            first_t = curr_list[0][11:19]
+            last_prev_t = prev_list[-1][11:19]
+            first_h = int(first_t[:2])
+            first_m = int(first_t[3:5])
+            last_prev_h = int(last_prev_t[:2])
+
+            if (first_h < 7 or (first_h == 7 and first_m <= 30)) and last_prev_h >= 20:
+                moved_punch = curr_list.pop(0)
+                prev_list.append(moved_punch)
+
+    daily_attendance = []
+    daily_rate = float(payslip.get("daily_rate") or 0.0)
+    hourly_rate = float(payslip.get("hourly_rate") or 0.0)
+
+    for d in all_dates:
+        ar = att_map.get(d)
+        punches_list = [p[11:16] for p in day_punches.get(d, [])]
+        dt_obj = datetime.strptime(d, "%Y-%m-%d")
+        day_name = dt_obj.strftime("%A")
+
+        if ar:
+            status = ar["status"]
+        elif dt_obj.weekday() == int(payslip.get("weekly_off_day", 6)):
+            status = "WEEKLY_OFF"
+        else:
+            status = "ABSENT"
+
+        if punches_list:
+            first_in = punches_list[0]
+            last_out = punches_list[-1] if len(punches_list) > 1 else (ar["punch_out"][11:16] if (ar and ar.get("punch_out")) else punches_list[0])
+        elif ar and ar.get("punch_in"):
+            first_in = ar["punch_in"][11:16]
+            last_out = ar["punch_out"][11:16] if ar.get("punch_out") else None
+        else:
+            first_in = None
+            last_out = None
+
+        work_hours = round(float(ar["work_hours"] or 0.0), 2) if ar else 0.0
+        ot_hours = round(float(ar["raw_ot_hours"] or 0.0), 2) if ar else 0.0
+
+        if status in ("PRESENT", "LATE"):
+            shift_wage = daily_rate
+        elif status == "HALF_DAY":
+            shift_wage = round(daily_rate * 0.5, 2)
+        else:
+            shift_wage = 0.0
+
+        ot_pay = round(ot_hours * hourly_rate, 2)
+        day_total_pay = round(shift_wage + ot_pay, 2)
+        punches_text = ", ".join(punches_list)
+
+        cursor.execute("""
+            INSERT INTO payslip_day_timings (
+                payslip_id, payroll_run_id, employee_id, emp_no, employee_name,
+                date, day_name, status, punch_in, punch_out, punches_text,
+                work_hours, ot_hours, shift_wage, ot_rate, ot_pay, day_total_pay
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(payslip_id, date) DO UPDATE SET
+                payroll_run_id = excluded.payroll_run_id,
+                employee_id = excluded.employee_id,
+                emp_no = excluded.emp_no,
+                employee_name = excluded.employee_name,
+                day_name = excluded.day_name,
+                status = excluded.status,
+                punch_in = excluded.punch_in,
+                punch_out = excluded.punch_out,
+                punches_text = excluded.punches_text,
+                work_hours = excluded.work_hours,
+                ot_hours = excluded.ot_hours,
+                shift_wage = excluded.shift_wage,
+                ot_rate = excluded.ot_rate,
+                ot_pay = excluded.ot_pay,
+                day_total_pay = excluded.day_total_pay
+        """, (
+            payslip_id, payslip.get("payroll_run_id"), emp_id, payslip["emp_no"], payslip["emp_name"],
+            d, day_name, status, first_in, last_out, punches_text,
+            work_hours, ot_hours, shift_wage, hourly_rate, ot_pay, day_total_pay
+        ))
+
+        daily_attendance.append({
+            "date": d,
+            "day_name": day_name,
+            "day_short": day_name[:3],
+            "status": status,
+            "punch_in": first_in,
+            "punch_out": last_out,
+            "punches": punches_list,
+            "punches_text": punches_text,
+            "work_hours": work_hours,
+            "ot_hours": ot_hours,
+            "shift_wage": shift_wage,
+            "ot_rate": hourly_rate,
+            "ot_pay": ot_pay,
+            "day_total_pay": day_total_pay,
+            "has_missed_mid_punch": ar["has_missed_mid_punch"] if ar else 0,
+            "mid_punch_status": ar["mid_punch_status"] if ar else "NORMAL"
+        })
+
+    conn.commit()
+    return daily_attendance
 
 
 def finalize_payroll_run(conn, run_id):
