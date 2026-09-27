@@ -548,15 +548,18 @@ def export_payslip_timings(payslip_id):
     writer = csv.writer(output)
     writer.writerow([
         "Employee No", "Employee Name", "Date", "Day", "Status",
-        "First IN", "All Punches", "Last OUT", "Work Hours", "OT Hours",
+        "First IN", "All Punches", "Last OUT", "Work Hours", "Gross OT Hours", "Late Mins", "Net OT Hours",
         "Daily Shift Wage", "OT Rate", "OT Pay", "Day Total Earnings"
     ])
 
     for r in rows:
+        gross_ot = r["gross_ot_hours"] if ("gross_ot_hours" in r.keys() and r["gross_ot_hours"] is not None) else r["ot_hours"]
+        late_m = r["late_mins"] if ("late_mins" in r.keys() and r["late_mins"] is not None) else 0
         writer.writerow([
             r["emp_no"], r["employee_name"], r["date"], r["day_name"], r["status"],
             r["punch_in"] or "--:--", r["punches_text"] or "", r["punch_out"] or "--:--",
-            r["work_hours"], r["ot_hours"], r["shift_wage"], r["ot_rate"], r["ot_pay"], r["day_total_pay"]
+            r["work_hours"], gross_ot, late_m, r["ot_hours"],
+            r["shift_wage"], r["ot_rate"], r["ot_pay"], r["day_total_pay"]
         ])
 
     csv_data = output.getvalue()

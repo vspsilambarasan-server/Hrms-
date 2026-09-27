@@ -350,19 +350,6 @@ def run_weekly_payroll(conn, start_date, end_date, period_name=None, bonus=0.0, 
     run_total_advances = 0.0
     processed_count = 0
 
-    # Ensure all target employees have up-to-date attendance & OT records evaluated from raw punches
-    try:
-        from routes.attendance import recompute_employee_day_attendance
-        cur_d = s_dt
-        while cur_d <= e_dt:
-            d_str = cur_d.strftime("%Y-%m-%d")
-            for emp_row in employees:
-                recompute_employee_day_attendance(conn, emp_row["id"], d_str, recompute_adjacent=False)
-            cur_d += timedelta(days=1)
-        conn.commit()
-    except Exception:
-        pass
-
     for emp_row in employees:
         emp = dict(emp_row)
         emp_id = emp["id"]
@@ -634,6 +621,8 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
             first_in = None
             last_out = None
 
+        gross_ot_hours = round(float(ar["gross_ot_hours"] if ar and ar.get("gross_ot_hours") is not None else (ar.get("raw_ot_hours") if ar else 0.0) or 0.0), 2)
+        late_mins = int((ar.get("late_deduction_mins") if ar and ar.get("late_deduction_mins") is not None else (ar.get("late_mins") if ar else 0)) or 0)
         work_hours = round(float(ar["work_hours"] or 0.0), 2) if ar else 0.0
         ot_hours = round(float(ar["raw_ot_hours"] or 0.0), 2) if ar else 0.0
 
@@ -652,8 +641,8 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
             INSERT INTO payslip_day_timings (
                 payslip_id, payroll_run_id, employee_id, emp_no, employee_name,
                 date, day_name, status, punch_in, punch_out, punches_text,
-                work_hours, ot_hours, shift_wage, ot_rate, ot_pay, day_total_pay
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                work_hours, gross_ot_hours, late_mins, ot_hours, shift_wage, ot_rate, ot_pay, day_total_pay
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(payslip_id, date) DO UPDATE SET
                 payroll_run_id = excluded.payroll_run_id,
                 employee_id = excluded.employee_id,
@@ -665,6 +654,8 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
                 punch_out = excluded.punch_out,
                 punches_text = excluded.punches_text,
                 work_hours = excluded.work_hours,
+                gross_ot_hours = excluded.gross_ot_hours,
+                late_mins = excluded.late_mins,
                 ot_hours = excluded.ot_hours,
                 shift_wage = excluded.shift_wage,
                 ot_rate = excluded.ot_rate,
@@ -673,7 +664,7 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
         """, (
             payslip_id, payslip.get("payroll_run_id"), emp_id, payslip["emp_no"], payslip["emp_name"],
             d, day_name, status, first_in, last_out, punches_text,
-            work_hours, ot_hours, shift_wage, hourly_rate, ot_pay, day_total_pay
+            work_hours, gross_ot_hours, late_mins, ot_hours, shift_wage, hourly_rate, ot_pay, day_total_pay
         ))
 
         daily_attendance.append({
@@ -686,6 +677,8 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
             "punches": punches_list,
             "punches_text": punches_text,
             "work_hours": work_hours,
+            "gross_ot_hours": gross_ot_hours,
+            "late_mins": late_mins,
             "ot_hours": ot_hours,
             "shift_wage": shift_wage,
             "ot_rate": hourly_rate,

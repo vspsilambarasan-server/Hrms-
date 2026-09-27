@@ -184,7 +184,12 @@
                             {% if day.work_hours > 0 %}{{ "%.2f"|format(day.work_hours) }}h{% else %}<span class="text-slate-300">—</span>{% endif %}
                         </td>
                         <td class="py-1.5 px-2 text-center font-mono whitespace-nowrap {% if day.ot_hours > 0 %}text-indigo-700 font-semibold{% else %}text-slate-300{% endif %}">
-                            {% if day.ot_hours > 0 %}{{ "%.2f"|format(day.ot_hours) }}h{% else %}—{% endif %}
+                            {% if day.ot_hours > 0 %}
+                            {{ "%.2f"|format(day.ot_hours) }}h
+                            {% if day.gross_ot_hours and day.gross_ot_hours > day.ot_hours %}
+                            <span class="block text-[8px] font-normal text-amber-600 font-mono" title="Gross OT {{ '%.2f'|format(day.gross_ot_hours) }}h less {{ day.late_mins }}m late">({{ "%.2f"|format(day.gross_ot_hours) }}h - {{ day.late_mins }}m late)</span>
+                            {% endif %}
+                            {% else %}—{% endif %}
                         </td>
                         <td class="py-1.5 px-3 text-right font-mono font-semibold text-slate-800 whitespace-nowrap">
                             {% if day.day_total_pay is defined and day.day_total_pay > 0 %}

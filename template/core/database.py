@@ -283,6 +283,8 @@ def init_db():
         punch_out TEXT,
         punches_text TEXT,
         work_hours REAL NOT NULL DEFAULT 0.0,
+        gross_ot_hours REAL NOT NULL DEFAULT 0.0,
+        late_mins INTEGER NOT NULL DEFAULT 0,
         ot_hours REAL NOT NULL DEFAULT 0.0,
         shift_wage REAL NOT NULL DEFAULT 0.0,
         ot_rate REAL NOT NULL DEFAULT 0.0,
@@ -762,6 +764,13 @@ def migrate_db(conn):
         cursor.execute("ALTER TABLE attendance_records ADD COLUMN gross_ot_hours REAL NOT NULL DEFAULT 0.0")
     if "late_deduction_mins" not in att_cols:
         cursor.execute("ALTER TABLE attendance_records ADD COLUMN late_deduction_mins INTEGER NOT NULL DEFAULT 0")
+
+    cursor.execute("PRAGMA table_info(payslip_day_timings)")
+    pdt_cols = [r["name"] for r in cursor.fetchall()]
+    if "gross_ot_hours" not in pdt_cols:
+        cursor.execute("ALTER TABLE payslip_day_timings ADD COLUMN gross_ot_hours REAL NOT NULL DEFAULT 0.0")
+    if "late_mins" not in pdt_cols:
+        cursor.execute("ALTER TABLE payslip_day_timings ADD COLUMN late_mins INTEGER NOT NULL DEFAULT 0")
 
     conn.commit()
 

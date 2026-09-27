@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 
 def parse_time_str(time_str):
     """Parse 'HH:MM' string to (hour, minute)."""
@@ -52,6 +52,9 @@ def compute_daily_lateness(shift_date_str, sched_start_dt, all_punches, grace_la
             p_dict = dict(p)
             t_str = (p_dict.get("punch_time") or p_dict.get("full_time") or "").strip()
             pt = p_dict.get("punch_type") or p_dict.get("type")
+        elif isinstance(p, (datetime, date)):
+            t_str = p.strftime("%Y-%m-%d %H:%M:%S")
+            pt = None
         elif isinstance(p, (tuple, list)):
             t_str = str(p[0]).strip()
             pt = p[1] if len(p) > 1 else None
