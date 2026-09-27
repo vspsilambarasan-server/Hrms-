@@ -27,7 +27,7 @@ def add_shift():
     start_time = request.form.get("start_time", "").strip()
     end_time = request.form.get("end_time", "").strip()
     is_overnight = 1 if request.form.get("is_overnight") == "1" else 0
-    grace_late = int(request.form.get("grace_late_mins", 15))
+    grace_late = int(request.form.get("grace_late_mins", 10))
     grace_early = int(request.form.get("grace_early_mins", 15))
     break_mins = int(request.form.get("break_mins", 60))
     min_hours_half = float(request.form.get("min_hours_half_day", 4.5))

@@ -76,7 +76,7 @@ def analyze_employee_shift_gaps(employee_id, target_date, conn=None):
     shift_row = cursor.fetchone()
     shift = dict(shift_row) if shift_row else {
         "name": "General Shift", "start_time": "09:00", "end_time": "18:00",
-        "grace_late_mins": 15, "grace_early_mins": 15, "break_mins": 60, "is_overnight": 0
+        "grace_late_mins": 10, "grace_early_mins": 15, "break_mins": 60, "is_overnight": 0
     }
 
     now = datetime.now()

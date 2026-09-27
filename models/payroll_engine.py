@@ -342,6 +342,25 @@ def run_weekly_payroll(conn, start_date, end_date, period_name=None, bonus=0.0, 
         """)
         employees = cursor.fetchall()
 
+    # Identify Saturdays within this weekly payroll range (Saturday OT is deferred to next week)
+    sat_dates = []
+    curr_chk = s_dt
+    while curr_chk <= e_dt:
+        if curr_chk.weekday() == 5:  # Saturday
+            sat_dates.append(curr_chk.strftime("%Y-%m-%d"))
+        curr_chk += timedelta(days=1)
+
+    # Identify previous Saturday (if a preceding weekly run exists, its deferred Saturday OT is credited this week)
+    prev_sat_dt = s_dt - timedelta(days=(s_dt.weekday() + 2) % 7 or 7)
+    prev_sat_date = prev_sat_dt.strftime("%Y-%m-%d")
+
+    cursor.execute("""
+        SELECT id FROM payroll_runs
+        WHERE run_type = 'WEEKLY' AND start_date <= ? AND end_date >= ?
+        LIMIT 1
+    """, (prev_sat_date, prev_sat_date))
+    has_prior_weekly_run = cursor.fetchone() is not None
+
     run_total_gross = 0.0
     run_total_net = 0.0
     run_total_ot = 0.0
@@ -392,15 +411,37 @@ def run_weekly_payroll(conn, start_date, end_date, period_name=None, bonus=0.0, 
         effective_days_worked = present_days + (half_days * 0.5)
 
         # 2. Overtime Hours & Pay in the week (auto-credited, no manual approval required)
-        cursor.execute("""
+        # Policy: Saturday OT is deferred and calculated in the next week's salary.
+        if sat_dates:
+            sat_placeholders = ','.join('?' for _ in sat_dates)
+            sat_filter = f"AND date NOT IN ({sat_placeholders})"
+            ot_params = [emp_id, start_date, end_date] + sat_dates
+        else:
+            sat_filter = ""
+            ot_params = [emp_id, start_date, end_date]
+
+        cursor.execute(f"""
             SELECT COALESCE(SUM(CASE WHEN approved_hours > 0 THEN approved_hours ELSE total_ot_hours END), 0.0) as total_ot_hrs,
                    COALESCE(SUM(calculated_ot_pay), 0.0) as total_ot_payout
             FROM overtime_records
-            WHERE employee_id = ? AND date >= ? AND date <= ? AND status != 'REJECTED'
-        """, (emp_id, start_date, end_date))
+            WHERE employee_id = ? AND date >= ? AND date <= ? AND status != 'REJECTED' {sat_filter}
+        """, ot_params)
         ot_summary = cursor.fetchone()
         approved_ot_hours = round(float(ot_summary["total_ot_hrs"] or 0.0), 2)
         ot_pay = round(float(ot_summary["total_ot_payout"] or 0.0), 2)
+
+        # Credit prior Saturday's deferred OT if preceding weekly run exists
+        if has_prior_weekly_run:
+            cursor.execute("""
+                SELECT COALESCE(SUM(CASE WHEN approved_hours > 0 THEN approved_hours ELSE total_ot_hours END), 0.0) as total_ot_hrs,
+                       COALESCE(SUM(calculated_ot_pay), 0.0) as total_ot_payout
+                FROM overtime_records
+                WHERE employee_id = ? AND date = ? AND status != 'REJECTED'
+            """, (emp_id, prev_sat_date))
+            prev_sat_sum = cursor.fetchone()
+            if prev_sat_sum:
+                approved_ot_hours = round(approved_ot_hours + float(prev_sat_sum["total_ot_hrs"] or 0.0), 2)
+                ot_pay = round(ot_pay + float(prev_sat_sum["total_ot_payout"] or 0.0), 2)
 
         # 3. Base Salary, Shift Salary & Rates
         shift_salary = float(emp.get("shift_salary") or (float(emp.get("base_salary", 0)) / 6.0) or 500.0)
@@ -624,7 +665,11 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
         gross_ot_hours = round(float(ar["gross_ot_hours"] if ar and ar.get("gross_ot_hours") is not None else (ar.get("raw_ot_hours") if ar else 0.0) or 0.0), 2)
         late_mins = int((ar.get("late_deduction_mins") if ar and ar.get("late_deduction_mins") is not None else (ar.get("late_mins") if ar else 0)) or 0)
         work_hours = round(float(ar["work_hours"] or 0.0), 2) if ar else 0.0
-        ot_hours = round(float(ar["raw_ot_hours"] or 0.0), 2) if ar else 0.0
+
+        if ar and ar.get("gross_ot_hours") is not None and ar.get("late_deduction_mins") is not None:
+            ot_hours = max(0.0, round(float(ar["gross_ot_hours"]) - (float(ar["late_deduction_mins"]) / 60.0), 2))
+        else:
+            ot_hours = round(float(ar["raw_ot_hours"] or 0.0), 2) if ar else 0.0
 
         if status in ("PRESENT", "LATE"):
             shift_wage = daily_rate
@@ -633,8 +678,16 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
         else:
             shift_wage = 0.0
 
-        ot_pay = round(ot_hours * hourly_rate, 2)
-        day_total_pay = round(shift_wage + ot_pay, 2)
+        is_weekly = payslip.get("run_type") == "WEEKLY" or payslip.get("pay_frequency") == "WEEKLY"
+        is_saturday_carryover = bool(is_weekly and dt_obj.weekday() == 5 and ot_hours > 0)
+
+        if is_saturday_carryover:
+            ot_pay = 0.0
+            day_total_pay = shift_wage
+        else:
+            ot_pay = round(ot_hours * hourly_rate, 2)
+            day_total_pay = round(shift_wage + ot_pay, 2)
+
         punches_text = ", ".join(punches_list)
 
         cursor.execute("""
@@ -684,6 +737,7 @@ def build_and_store_payslip_day_timings(conn, payslip_id):
             "ot_rate": hourly_rate,
             "ot_pay": ot_pay,
             "day_total_pay": day_total_pay,
+            "is_saturday_carryover": is_saturday_carryover,
             "has_missed_mid_punch": ar["has_missed_mid_punch"] if ar else 0,
             "mid_punch_status": ar["mid_punch_status"] if ar else "NORMAL"
         })

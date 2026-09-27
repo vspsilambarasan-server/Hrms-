@@ -392,15 +392,18 @@ def sync_device_attendance(ip=None, port=DEFAULT_DEVICE_PORT, days_back=30):
 
             raw_punch_records.append((emp_id, p_str, device_ip))
 
-            # Check for cross-midnight checkout (strictly for scheduled overnight shifts before 06:30 AM)
-            if p_dt.hour < 7:
+            # Check for cross-midnight checkout (for scheduled overnight shifts or night duty before 07:30 AM)
+            if p_dt.hour < 7 or (p_dt.hour == 7 and p_dt.minute <= 30):
                 prev_date_str = (p_dt - timedelta(days=1)).strftime("%Y-%m-%d")
                 if (emp_id, prev_date_str) in day_punches and len(day_punches[(emp_id, prev_date_str)]) > 0:
                     cursor.execute("SELECT shift_id FROM roster_schedules WHERE employee_id = ? AND date = ?", (emp_id, prev_date_str))
                     r_prev = cursor.fetchone()
                     prev_shift_id = r_prev["shift_id"] if r_prev and r_prev["shift_id"] else emp.get("default_shift_id")
                     prev_shift = shifts_map.get(prev_shift_id, {})
-                    if prev_shift.get("is_overnight"):
+                    prev_list = day_punches[(emp_id, prev_date_str)]
+                    last_prev = prev_list[-1]
+                    is_prev_night = (last_prev.hour >= 20) or (len(prev_list) % 2 != 0 and last_prev.hour >= 18)
+                    if prev_shift.get("is_overnight") or is_prev_night:
                         date_str = prev_date_str
 
             key = (emp_id, date_str)
@@ -445,11 +448,11 @@ def sync_device_attendance(ip=None, port=DEFAULT_DEVICE_PORT, days_back=30):
 
             shift_obj = shifts_map.get(shift_id, {
                 "start_time": "09:00", "end_time": "18:00", "is_overnight": 0,
-                "grace_late_mins": 15, "grace_early_mins": 15, "break_mins": 60,
+                "grace_late_mins": 10, "grace_early_mins": 15, "break_mins": 60,
                 "min_hours_half_day": 4.5, "min_hours_full_day": 8.0, "allowance_rate": 0.0
             })
 
-            eval_res = evaluate_attendance(s_date, shift_obj, p_in, p_out, is_off_day=bool(is_off))
+            eval_res = evaluate_attendance(s_date, shift_obj, p_in, p_out, is_off_day=bool(is_off), all_punches=punch_list)
 
             cursor.execute("""
                 INSERT INTO attendance_records (

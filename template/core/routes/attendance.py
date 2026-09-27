@@ -306,7 +306,7 @@ def record_punch():
     shift_row = cursor.fetchone()
     shift_info = dict(shift_row) if shift_row else {
         "start_time": "09:00", "end_time": "18:00", "is_overnight": 0,
-        "grace_late_mins": 15, "grace_early_mins": 15, "break_mins": 60,
+        "grace_late_mins": 10, "grace_early_mins": 15, "break_mins": 60,
         "min_hours_half_day": 4.5, "min_hours_full_day": 8.0, "allowance_rate": 0.0
     }
 
@@ -1425,19 +1425,23 @@ def export_all_punches_csv():
     )
 
 
-def recompute_employee_day_attendance(conn, employee_id, punch_date):
+def recompute_employee_day_attendance(conn, employee_id, punch_date, recompute_adjacent=True):
     """
     Re-evaluates and updates attendance_records for a given employee and date
-    based on all current punches in attendance_punches.
+    based on all current punches in attendance_punches, with cross-midnight night duty awareness.
     """
     cursor = conn.cursor()
+    prev_date_str = (datetime.strptime(punch_date, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    next_date_str = (datetime.strptime(punch_date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
     cursor.execute("""
         SELECT punch_time, punch_type 
         FROM attendance_punches 
         WHERE employee_id = ? AND punch_time LIKE ?
         ORDER BY punch_time ASC
     """, (employee_id, f"{punch_date}%"))
-    punches = cursor.fetchall()
+    raw_rows = cursor.fetchall()
+    punches = [dict(r) for r in raw_rows]
 
     # Look up roster or employee default shift
     cursor.execute("SELECT shift_id, is_off_day FROM roster_schedules WHERE employee_id = ? AND date = ?", (employee_id, punch_date))
@@ -1461,9 +1465,43 @@ def recompute_employee_day_attendance(conn, employee_id, punch_date):
     shift_row = cursor.fetchone()
     shift_info = dict(shift_row) if shift_row else {
         "start_time": "09:00", "end_time": "18:00", "is_overnight": 0,
-        "grace_late_mins": 15, "grace_early_mins": 15, "break_mins": 60,
+        "grace_late_mins": 10, "grace_early_mins": 15, "break_mins": 60,
         "min_hours_half_day": 4.5, "min_hours_full_day": 8.0, "allowance_rate": 0.0
     }
+
+    # Cross-midnight check 1: Does first punch on punch_date belong to prev_date?
+    first_belongs_to_prev = False
+    if punches:
+        first_dt = datetime.strptime(punches[0]["punch_time"], "%Y-%m-%d %H:%M:%S")
+        if first_dt.hour < 7 or (first_dt.hour == 7 and first_dt.minute <= 30):
+            cursor.execute("""
+                SELECT punch_time FROM attendance_punches
+                WHERE employee_id = ? AND punch_time LIKE ?
+                ORDER BY punch_time DESC LIMIT 1
+            """, (employee_id, f"{prev_date_str}%"))
+            prev_last = cursor.fetchone()
+            if prev_last:
+                prev_last_dt = datetime.strptime(prev_last["punch_time"], "%Y-%m-%d %H:%M:%S")
+                if prev_last_dt.hour >= 20:
+                    first_belongs_to_prev = True
+                    punches.pop(0)
+
+    # Cross-midnight check 2: Does next_date have an early punch belonging to punch_date?
+    has_next_night_punch = False
+    if punches:
+        last_dt = datetime.strptime(punches[-1]["punch_time"], "%Y-%m-%d %H:%M:%S")
+        if last_dt.hour >= 20:
+            cursor.execute("""
+                SELECT punch_time, punch_type FROM attendance_punches
+                WHERE employee_id = ? AND punch_time LIKE ?
+                ORDER BY punch_time ASC LIMIT 1
+            """, (employee_id, f"{next_date_str}%"))
+            next_first = cursor.fetchone()
+            if next_first:
+                next_first_dt = datetime.strptime(next_first["punch_time"], "%Y-%m-%d %H:%M:%S")
+                if next_first_dt.hour < 7 or (next_first_dt.hour == 7 and next_first_dt.minute <= 30):
+                    punches.append(dict(next_first))
+                    has_next_night_punch = True
 
     now_dt = datetime.now()
     today_date_str = now_dt.strftime("%Y-%m-%d")
@@ -1473,6 +1511,9 @@ def recompute_employee_day_attendance(conn, employee_id, punch_date):
 
     if punches:
         p_in = punches[0]["punch_time"]
+        p_in_dt = datetime.strptime(p_in, "%Y-%m-%d %H:%M:%S")
+        is_night_in = (not shift_info.get("is_overnight")) and (p_in_dt.hour >= 20)
+
         out_punches = [
             p["punch_time"] for idx, p in enumerate(punches)
             if (p["punch_type"] == "OUT") or (p["punch_type"] != "IN" and idx % 2 == 1)
@@ -1480,11 +1521,12 @@ def recompute_employee_day_attendance(conn, employee_id, punch_date):
         last_punch = punches[-1]
         is_last_in = (last_punch["punch_type"] == "IN") or (last_punch["punch_type"] != "OUT" and (len(punches) - 1) % 2 == 0)
 
-        # If employee has clocked out (last punch is OUT or even completed count)
-        if not is_last_in and out_punches:
+        if len(punches) > 1 and (not is_last_in or has_next_night_punch):
+            p_out = punches[-1]["punch_time"]
+        elif not is_last_in and out_punches:
             p_out = out_punches[-1]
         else:
-            if is_shift_ended:
+            if is_shift_ended and not is_night_in:
                 # Per factory floor policy: on 6 pm shift ends no punch required
                 p_out = f"{punch_date} {sched_end_hm}:00"
             else:
@@ -1526,6 +1568,13 @@ def recompute_employee_day_attendance(conn, employee_id, punch_date):
     att_rec = cursor.fetchone()
     if att_rec:
         sync_overtime_from_attendance(conn, att_rec["id"])
+
+    # If adjacent day was affected, recompute it as well once
+    if recompute_adjacent:
+        if first_belongs_to_prev:
+            recompute_employee_day_attendance(conn, employee_id, prev_date_str, recompute_adjacent=False)
+        if has_next_night_punch:
+            recompute_employee_day_attendance(conn, employee_id, next_date_str, recompute_adjacent=False)
 
 
 @attendance_bp.route("/manual-punch", methods=["POST"])

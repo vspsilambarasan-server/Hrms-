@@ -62,7 +62,7 @@ def init_db():
         start_time TEXT NOT NULL,         -- '09:00'
         end_time TEXT NOT NULL,           -- '18:00'
         is_overnight INTEGER NOT NULL DEFAULT 0, -- 1 if shift crosses midnight (e.g., 22:00 - 06:00)
-        grace_late_mins INTEGER NOT NULL DEFAULT 15,
+        grace_late_mins INTEGER NOT NULL DEFAULT 10,
         grace_early_mins INTEGER NOT NULL DEFAULT 15,
         break_mins INTEGER NOT NULL DEFAULT 60,
         min_hours_half_day REAL NOT NULL DEFAULT 4.5,

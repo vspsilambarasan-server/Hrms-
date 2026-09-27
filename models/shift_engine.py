@@ -25,7 +25,7 @@ def get_shift_datetimes(shift_date_str, shift):
 
     return start_dt, end_dt
 
-def compute_daily_lateness(shift_date_str, sched_start_dt, all_punches, grace_late_mins=15):
+def compute_daily_lateness(shift_date_str, sched_start_dt, all_punches, grace_late_mins=10):
     """
     Computes total lateness across the day:
     1. Morning arrival (past scheduled start, e.g. 09:00 + grace_late_mins).
@@ -100,10 +100,10 @@ def compute_daily_lateness(shift_date_str, sched_start_dt, all_punches, grace_la
         "ot_break_late_mins": 0
     }
 
-    # 1. Morning Clock-In Lateness
+    # 1. Morning Clock-In Lateness (e.g. 09:10:xx is within 10m morning grace)
     first_punch = normalized[0]
     first_dt = first_punch["dt"]
-    grace_dt = sched_start_dt + timedelta(minutes=grace_late_mins)
+    grace_dt = sched_start_dt + timedelta(minutes=grace_late_mins, seconds=59)
     if first_dt > grace_dt:
         diff_mins = int((first_dt - sched_start_dt).total_seconds() // 60)
         breakdown["morning_late_mins"] = max(0, diff_mins)
@@ -254,7 +254,7 @@ def evaluate_attendance(shift_date_str, shift, punch_in_str, punch_out_str, is_o
             punch_out_str = sched_end.strftime("%Y-%m-%d %H:%M:%S")
         else:
             # Shift still actively in progress (or night punch in progress)
-            grace_late = timedelta(minutes=shift.get("grace_late_mins", 15))
+            grace_late = timedelta(minutes=shift.get("grace_late_mins", 10), seconds=59)
             eff_start = sched_start
             if is_night_punch:
                 base_d = datetime.strptime(shift_date_str, "%Y-%m-%d")
@@ -341,7 +341,7 @@ def evaluate_attendance(shift_date_str, shift, punch_in_str, punch_out_str, is_o
     if is_standalone_night:
         # Segment 7 schedule: 10:30 PM (22:30) to 05:30 AM
         night_start = base_date.replace(hour=22, minute=30, second=0)
-        grace_late = timedelta(minutes=shift.get("grace_late_mins", 15))
+        grace_late = timedelta(minutes=shift.get("grace_late_mins", 10), seconds=59)
 
         late_mins = 0
         if p_in > (night_start + grace_late):
@@ -379,7 +379,7 @@ def evaluate_attendance(shift_date_str, shift, punch_in_str, punch_out_str, is_o
         day_p_out = day_punches[-1] if len(day_punches) > 1 else sched_end
 
         late_mins, breakdown = compute_daily_lateness(
-            shift_date_str, sched_start, day_punches, grace_late_mins=shift.get("grace_late_mins", 15)
+            shift_date_str, sched_start, day_punches, grace_late_mins=shift.get("grace_late_mins", 10)
         )
 
         day_elapsed = (day_p_out - day_p_in).total_seconds()
@@ -432,10 +432,10 @@ def evaluate_attendance(shift_date_str, shift, punch_in_str, punch_out_str, is_o
     # Standard day shift or scheduled overnight shift
     if all_punches:
         late_mins, breakdown = compute_daily_lateness(
-            shift_date_str, sched_start, all_punches, grace_late_mins=shift.get("grace_late_mins", 15)
+            shift_date_str, sched_start, all_punches, grace_late_mins=shift.get("grace_late_mins", 10)
         )
     else:
-        grace_late = timedelta(minutes=shift.get("grace_late_mins", 15))
+        grace_late = timedelta(minutes=shift.get("grace_late_mins", 10), seconds=59)
         late_mins = 0
         if p_in > (sched_start + grace_late):
             diff = p_in - sched_start

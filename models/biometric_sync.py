@@ -448,7 +448,7 @@ def sync_device_attendance(ip=None, port=DEFAULT_DEVICE_PORT, days_back=30):
 
             shift_obj = shifts_map.get(shift_id, {
                 "start_time": "09:00", "end_time": "18:00", "is_overnight": 0,
-                "grace_late_mins": 15, "grace_early_mins": 15, "break_mins": 60,
+                "grace_late_mins": 10, "grace_early_mins": 15, "break_mins": 60,
                 "min_hours_half_day": 4.5, "min_hours_full_day": 8.0, "allowance_rate": 0.0
             })
 
