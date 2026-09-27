@@ -350,6 +350,19 @@ def run_weekly_payroll(conn, start_date, end_date, period_name=None, bonus=0.0, 
     run_total_advances = 0.0
     processed_count = 0
 
+    # Ensure all target employees have up-to-date attendance & OT records evaluated from raw punches
+    try:
+        from routes.attendance import recompute_employee_day_attendance
+        cur_d = s_dt
+        while cur_d <= e_dt:
+            d_str = cur_d.strftime("%Y-%m-%d")
+            for emp_row in employees:
+                recompute_employee_day_attendance(conn, emp_row["id"], d_str, recompute_adjacent=False)
+            cur_d += timedelta(days=1)
+        conn.commit()
+    except Exception:
+        pass
+
     for emp_row in employees:
         emp = dict(emp_row)
         emp_id = emp["id"]

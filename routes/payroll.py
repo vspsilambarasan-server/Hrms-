@@ -200,6 +200,19 @@ def view_payslip(payslip_id):
     """, (payslip_id,))
     row = cursor.fetchone()
     if not row:
+        # Check if this payslip was replaced by a re-run for the same employee
+        cursor.execute("""
+            SELECT p.id FROM payslips p
+            WHERE p.employee_id = (
+                SELECT employee_id FROM payslip_day_timings WHERE payslip_id = ? LIMIT 1
+            )
+            ORDER BY p.id DESC LIMIT 1
+        """, (payslip_id,))
+        fallback = cursor.fetchone()
+        if fallback:
+            conn.close()
+            return redirect(url_for("payroll.view_payslip", payslip_id=fallback["id"]))
+
         flash("Payslip not found", "danger")
         conn.close()
         return redirect(url_for("payroll.index"))
